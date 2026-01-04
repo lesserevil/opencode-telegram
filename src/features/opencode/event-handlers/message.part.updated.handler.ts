@@ -43,6 +43,13 @@ export default async function messagePartUpdatedHandler(
 
     if (part.type === "text") {
         const text = escapeHtml(part.text ?? "");
+
+        // Validate text is not empty or whitespace-only
+        if (!text || text.trim().length === 0) {
+            console.log("Skipping empty or whitespace-only text update");
+            return null;
+        }
+
         const sessionKey = `${chatId}`;
 
         // Get or create throttle state for this session
@@ -61,6 +68,12 @@ export default async function messagePartUpdatedHandler(
 
         // Function to actually send the update
         const sendUpdate = async (textToSend: string) => {
+            // Extra safety: validate text is not empty or whitespace-only
+            if (!textToSend || textToSend.trim().length === 0) {
+                console.log("Skipping sendUpdate with empty or whitespace-only text");
+                return;
+            }
+
             if (userSession.lastMessageId) {
                 try {
                     await ctx.api.editMessageText(chatId, userSession.lastMessageId, textToSend, { parse_mode: "HTML" });
