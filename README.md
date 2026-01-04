@@ -1,111 +1,92 @@
-# ytBot - YouTube to Podcast Converter
+# telegramCoder - AI-Powered Telegram Terminal Bot
 
-[![npm version](https://badge.fury.io/js/@tommertom%2Fytbot.svg)](https://www.npmjs.com/package/@tommertom/ytbot)
+[![npm version](https://badge.fury.io/js/@tommertom%2Ftelegramcoder.svg)](https://www.npmjs.com/package/@tommertom/telegramcoder)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Transform your favorite YouTube videos into podcasts and music files for your mobile device - all through a simple Telegram chat interface!**
+**An AI-powered Telegram bot providing interactive terminal sessions with support for GitHub Copilot, Claude, Cursor, and other CLI-based AI coding assistants.**
 
-No complicated interfaces, no desktop apps, no third-party services - just send a YouTube link to your personal Telegram bot running on your own machine, and receive the video ready to play on your phone. You control where it runs, you control your data.
+Control your development environment through Telegram with full terminal access, file management, and AI coding assistant integration. Self-hosted and secure.
 
 ## ✨ Features
 
-- 🎵 **One-Click Conversion** - Just send a YouTube URL, get your media file back
-- 📱 **Mobile-First** - Designed for easy use on your phone via Telegram
-- 🏠 **Self-Hosted** - Runs on YOUR machine, under YOUR control (laptop, server, Raspberry Pi, or any machine you own)
-- 🎧 **Smart Quality Management** - Automatically optimizes file size for mobile
-- 📦 **No Hassle** - No sign-ups, no subscriptions, no cloud storage required
-- 🔒 **Private** - Your personal bot, your files, your privacy
-- ⚡ **Fast** - Direct delivery to your Telegram chat
+- 💻 **Interactive Terminal** - Full terminal sessions via Telegram
+- 🤖 **AI Assistant Integration** - Works with GitHub Copilot, Claude, Cursor, and more
+- 🧠 **OpenCode Integration** - Direct access to OpenCode AI for coding assistance
+- 📱 **Mobile-First** - Code from anywhere using your phone
+- 🏠 **Self-Hosted** - Runs on YOUR machine, under YOUR control
+- 📁 **File Management** - Upload, download, and manage files remotely
+- 🔒 **Private & Secure** - Your code stays on your machine
+- ⚡ **Real-time** - Instant terminal feedback and interaction
 
 
 
-## Using ytBot
+## Using telegramCoder
 
 Once your bot is running and configured:
 
 1. **Open Telegram** and find your bot
-2. **Send a YouTube URL** - Any valid YouTube link or playlist
-3. **Wait for download** - The bot will fetch and process the video(s)
-4. **Receive your file(s)** - Audio files sent directly to your chat
+2. **Send /start** to see available commands
+3. **Use /opencode** to start an AI coding session
+4. **Send prompts** with /prompt to interact with OpenCode AI
 
-### Demo
+### 🧠 OpenCode AI Integration
 
-See ytBot in action:
+The bot includes built-in integration with OpenCode AI for intelligent coding assistance.
 
-[![Watch Demo Video](https://img.youtube.com/vi/3lQDlkIo-os/0.jpg)](https://youtube.com/shorts/3lQDlkIo-os)
+**Auto-Start Feature:**
+- The bot automatically starts the OpenCode server if it's not running
+- Simply install OpenCode globally: `npm install -g opencode-ai`
+- Then use `/opencode` - the bot handles the rest!
 
-*Click the image above to watch the demo video*
+**Commands:**
+- `/start` or `/help` - Show help message with available commands
+- `/opencode` - Start a new OpenCode AI session (auto-starts server if needed)
+- `/prompt <message>` - Send a prompt to your active OpenCode session
 
-**Single Video Example:**
+**Example Usage:**
 ```
-You: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+You: /opencode
 
-Bot: 🎵 Downloading video...
-     Quality: 192kbps
-     Size: ~8MB
+Bot: 🔄 OpenCode server not running. Starting server...
+     This may take up to 30 seconds.
      
-     [Audio file sent]
-```
+     ✅ OpenCode server started!
+     
+     🔄 Creating session...
+     
+     ✅ OpenCode session started!
+     Session ID: abc123...
+     
+     Use /prompt <your message> to send prompts to OpenCode.
 
-**Playlist Example:**
-```
-You: https://www.youtube.com/playlist?list=PLxxxxxx
+You: /prompt Create a function to calculate factorial in JavaScript
 
-Bot: 📋 Playlist detected: My Awesome Playlist
-     📊 Total videos: 25
-     ⬇️ Will download: 25 videos
+Bot: 📝 OpenCode Response:
+
+     Here's a factorial function in JavaScript:
      
-     ⏳ This may take a while. Processing sequentially...
+     function factorial(n) {
+       if (n <= 1) return 1;
+       return n * factorial(n - 1);
+     }
      
-     📥 [1/25] Video Title 1
-     ✅ [1/25] Downloaded: Video Title 1
-     [Audio file sent]
-     
-     📥 [2/25] Video Title 2
-     ✅ [2/25] Downloaded: Video Title 2
-     [Audio file sent]
-     
-     ... (continues for all videos)
-     
-     ✅ Playlist download complete!
-     📊 Summary:
-        ✅ Downloaded: 23
-        ❌ Failed: 2
-        📝 Total: 25
+     This uses recursion to calculate the factorial...
 ```
 
-### Smart Quality Management
+**Features:**
+- 🚀 **Auto-Start** - Server starts automatically when needed
+- 💬 **Session Management** - Each user has their own isolated session
+- 🔄 **Persistent Conversations** - Continue your coding discussion across multiple prompts
+- 📦 **Long Response Handling** - Automatically splits long responses for Telegram
+- 🔐 **Secure** - Sessions are user-specific and private
 
-If a video file is too large for Telegram (>50MB), ytBot automatically tries lower bitrates:
-- Best available → 192kbps → 128kbps → 96kbps → 64kbps → 48kbps
+**Setup:**
+```bash
+npm install -g opencode-ai
+```
 
-This ensures you always get the audio, even if the original is too large.
+For more details, see [OpenCode Integration Documentation](docs/opencode-integration.md).
 
-**Supported YouTube URLs:**
-- Standard videos: `https://www.youtube.com/watch?v=...`
-- Short links: `https://youtu.be/...`
-- YouTube Shorts: `https://www.youtube.com/shorts/...`
-- **Playlists**: `https://www.youtube.com/playlist?list=...`
-- **Videos with playlist context**: `https://www.youtube.com/watch?v=...&list=...`
-
-**Playlist Features:**
-- ✅ Downloads up to **50 videos** per playlist (configurable)
-- ✅ **Sequential downloading** to prevent rate limiting
-- ✅ **Progress updates** for each video
-- ✅ **Error resilience** - failed videos don't stop the playlist
-- ✅ Summary statistics after completion
-
-
-## ⚠️ Important Legal Notice
-
-**USE AT YOUR OWN RISK**: You using this tool may violate YouTube's Terms of Service.
-
-- **YouTube ToS**: Downloading videos may violate YouTube's Terms of Service, which prohibit downloading content without explicit permission
-- **Copyright**: Only download content you have the right to download or that is in the public domain
-- **Personal Use**: This tool is intended for personal, educational use only
-- **User Responsibility**: You are solely responsible for ensuring your use complies with all applicable laws and service agreements
-
-**The author assumes no liability for any consequences resulting from the use of this software.**
 
 ## Quick Installation
 
@@ -113,16 +94,16 @@ Choose the installation method that works best for you:
 
 | Method | Best For | Command |
 |--------|----------|---------|
-| **npx** | Quick testing, temporary use | `npx @tommertom/ytbot@latest` |
-| **Global Install** | Regular use, permanent installation | `npm install -g @tommertom/ytbot` |
-| **Docker** | Isolation, Windows, production | `npx @tommertom/ytbot@latest --docker` |
+| **npx** | Quick testing, temporary use | `npx @tommertom/telegramcoder@latest` |
+| **Global Install** | Regular use, permanent installation | `npm install -g @tommertom/telegramcoder` |
+| **Docker** | Isolation, Windows, production | `npx @tommertom/telegramcoder@latest --docker` |
 
 ### Method 1: Run with npx (Easiest - No Installation)
 
-Perfect for trying out ytBot or if you don't want to install anything permanently:
+Perfect for trying out telegramCoder or if you don't want to install anything permanently:
 
 ```bash
-npx @tommertom/ytbot@latest
+npx @tommertom/telegramcoder@latest
 ```
 
 **First Run:** The bot will create a `.env` file automatically and exit with instructions:
@@ -151,7 +132,7 @@ nano .env
 **Run again to start the bot:**
 
 ```bash
-npx @tommertom/ytbot@latest
+npx @tommertom/telegramcoder@latest
 ```
 
 ### Method 2: Install Globally
@@ -160,20 +141,20 @@ Install once and run anytime:
 
 ```bash
 # Install
-npm install -g @tommertom/ytbot
+npm install -g @tommertom/telegramcoder
 
 # Run (creates .env on first run)
-ytbot
+telegramcoder
 ```
 
 **First Run:** Same as npx - creates `.env` file automatically:
 1. Bot creates `.env` file and exits
 2. You edit `.env` with your tokens
-3. Run `ytbot` again to start
+3. Run `telegramcoder` again to start
 
 ## 🚩 CLI Flags
 
-ytBot supports command-line flags to modify its behavior:
+telegramCoder supports command-line flags to modify its behavior:
 
 ### `--docker` Flag
 
@@ -181,18 +162,18 @@ ytBot supports command-line flags to modify its behavior:
 
 **Usage:**
 ```bash
-npx @tommertom/ytbot@latest --docker
+npx @tommertom/telegramcoder@latest --docker
 ```
 
 **What it does:**
 1. Creates a production-ready `Dockerfile` in your current directory
-2. Creates a `docker-compose.yml` configured for ytBot
+2. Creates a `docker-compose.yml` configured for the bot
 3. Prompts you before overwriting any existing files
 4. Exits after file generation (does not start the bot)
 
 **Example output:**
 ```
-🤖 ytBOT - AI-Powered Telegram Terminal Bot
+🤖 telegramCoder - AI-Powered Telegram Terminal Bot
 ================================================
 
 🐳 Docker Setup Mode
@@ -217,7 +198,7 @@ npx @tommertom/ytbot@latest --docker
 ```
 
 **When to use:**
-- Setting up ytBot with Docker for the first time
+- Setting up telegramCoder with Docker for the first time
 - Updating Docker configurations to latest recommended settings
 - Getting production-ready Docker files without manual copying
 
@@ -226,7 +207,7 @@ npx @tommertom/ytbot@latest --docker
 ### Method 3: Docker (Most Isolated)
 
 Run in a container with all dependencies included. Docker is perfect for:
-- **Isolation**: Keeps ytBot separate from your system
+- **Isolation**: Keeps the bot separate from your system
 - **Consistency**: Same environment on any machine
 - **Easy Updates**: Pull latest version with one command
 - **Windows Users**: Best option for Windows compatibility
@@ -238,7 +219,7 @@ The easiest way to get started with Docker:
 **Step 1: Generate Docker files**
 ```bash
 # Creates Dockerfile and docker-compose.yml in current directory
-npx @tommertom/ytbot@latest --docker
+npx @tommertom/telegramcoder@latest --docker
 ```
 
 **What happens:**
@@ -292,11 +273,11 @@ EOF
 
 ## Configuration
 
-ytBot needs a few settings to work. These are stored in a `.env` file that's **created automatically on first run**.
+telegramCoder needs a few settings to work. These are stored in a `.env` file that's **created automatically on first run**.
 
 ### Automatic .env Creation
 
-When you run ytBot for the first time:
+When you run telegramCoder for the first time:
 
 1. **Bot detects no .env file** and creates one from the template
 2. **Bot exits** with a message telling you to edit it
@@ -354,29 +335,9 @@ TELEGRAM_BOT_TOKENS=token1,token2,token3
 
 ## System Requirements
 
-- **Operating System**: Linux or macOS (Windows not supported)
+- **Operating System**: Linux or macOS (Windows supported via WSL or Docker)
 - **Node.js**: Version 18 or higher
-- **Python 3**: For yt-dlp (YouTube downloader)
-- **Disk Space**: ~500MB for dependencies
-
-## Installing Dependencies
-
-ytBot requires `yt-dlp` to download YouTube videos:
-
-```bash
-# macOS
-brew install yt-dlp
-
-# Linux (Ubuntu/Debian)
-sudo apt update
-sudo apt install yt-dlp
-
-# Or using pip (any OS with Python)
-pip3 install yt-dlp
-
-# Verify installation
-yt-dlp --version
-```
+- **Disk Space**: ~200MB for dependencies
 
 **Note:** Docker installation includes all dependencies automatically.
 
@@ -400,30 +361,29 @@ yt-dlp --version
 3. Make sure `TELEGRAM_BOT_TOKENS` is correct
 4. Restart the bot
 
-### Downloads Failing
+### Terminal Not Responding
 
-1. Verify yt-dlp is installed: `yt-dlp --version`
-2. Check the YouTube URL is valid
-3. Try downloading manually to see error: `yt-dlp <URL>`
-4. Update yt-dlp: `pip3 install --upgrade yt-dlp`
-5. Check you have enough disk space
+1. Check the terminal session is active
+2. Verify commands are being sent correctly
+3. Check for any error messages in bot logs
+4. Restart the terminal session
 
-### File Not Received
+### File Upload/Download Issues
 
 1. Check bot console/logs for errors
-2. Verify file was downloaded (check download directory)
-3. File might be too large even at lowest quality
-4. Try a shorter/smaller video
+2. Verify file permissions
+3. Check available disk space
+4. Ensure file sizes are within Telegram limits
 
 ## Privacy & Security
 
-- **Self-Hosted & You're In Control**: Runs on YOUR machine (laptop, server, cloud VPS, Raspberry Pi) - not someone else's cloud
+- **Self-Hosted & You're In Control**: Runs on YOUR machine - not someone else's cloud
 - **Private Bot**: Only users you authorize can use it
-- **Local Processing**: Videos are processed on your server, not third-party cloud services
-- **Your Data Stays Yours**: No external services involved in the download process
-- **Automatic Cleanup**: Downloaded files are managed automatically
+- **Local Execution**: All commands run on your machine, no third-party services
+- **Your Code Stays Yours**: Full control over your development environment
 - **Access Control**: Unauthorized users are blocked automatically
-- **Run Anywhere**: Deploy on any machine you control - home server, work laptop, cloud instance, or edge device
+- **Secure Sessions**: Each user gets isolated terminal sessions
+- **Run Anywhere**: Deploy on any machine you control
 
 **Admin Notifications**: The admin user receives alerts if unauthorized users try to access the bot.
 
@@ -431,8 +391,8 @@ yt-dlp --version
 
 - **Runtime**: Node.js with TypeScript
 - **Bot Framework**: Grammy (Telegram Bot API)
-- **Downloader**: yt-dlp (Python-based)
-- **File Watching**: Automatic detection and delivery of downloaded files
+- **Terminal**: node-pty for full PTY support
+- **AI Integration**: Compatible with GitHub Copilot CLI, Claude, Cursor
 - **Multi-Bot Support**: Run multiple bot instances from one installation
 
 ## FAQ
@@ -441,25 +401,19 @@ yt-dlp --version
 A: Nothing! On first run, the bot creates a `.env` file and exits so you can configure it. Edit the `.env` file with your bot token and user ID, then run the bot again.
 
 **Q: Where does the bot run?**  
-A: On YOUR machine - anywhere you want! Your laptop, home server, Raspberry Pi, or cloud VPS. You have complete control.
+A: On YOUR machine - anywhere you want! Your laptop, home server, or cloud VPS. You have complete control.
 
 **Q: Do I need to trust a third-party service?**  
-A: No! The bot runs on your own machine. No data goes to external services except YouTube (for downloading) and Telegram (for messaging).
+A: No! The bot runs on your own machine. Only Telegram is used for messaging.
 
-**Q: Can I download playlists?**  
-A: Currently ytBot handles individual videos. Send one URL at a time.
+**Q: Can I use GitHub Copilot with this?**  
+A: Yes! The bot provides full terminal access, so you can run `gh copilot` and other CLI tools.
 
-**Q: What video formats are supported?**  
-A: ytBot downloads whatever yt-dlp supports - essentially all YouTube videos.
-
-**Q: How long are files kept?**  
-A: Files are sent immediately and can be configured to clean up automatically.
+**Q: Are terminal sessions persistent?**  
+A: Sessions are maintained while the bot is running. They reset if the bot restarts.
 
 **Q: Can multiple people use the same bot?**  
-A: Yes! Add multiple user IDs to `ALLOWED_USER_IDS`.
-
-**Q: Is this legal?**  
-A: This is for personal use only. Ensure you have the right to download any content. See the Legal Notice above.
+A: Yes! Add multiple user IDs to `ALLOWED_USER_IDS`. Each user gets isolated sessions.
 
 **Q: Can I run this on a Raspberry Pi?**  
 A: Yes, as long as it runs Node.js 18+ and has enough storage.
@@ -469,7 +423,6 @@ A: The bot stops working until you bring it back online. That's the trade-off fo
 
 ---
 
-**⚠️ Legal Disclaimer**: This software is provided "as is" without warranty. The author is not responsible for any misuse or violations of third-party terms of service. Users are solely responsible for ensuring compliance with all applicable laws.
+**⚠️ Legal Disclaimer**: This software is provided "as is" without warranty. The author is not responsible for any misuse. Users are solely responsible for ensuring proper security and access controls.
 
-**📱 Enjoy your podcasts on the go!**
-# opencode-telegram
+**💻 Code from anywhere with telegramCoder!**

@@ -1,10 +1,10 @@
 {
-  "name": "@tommertom/ytbot",
+  "name": "@tommertom/telegramcoder",
   "version": "0.8.11",
-  "description": "AI-powered Telegram bot providing interactive terminal sessions with support for GitHub Copilot, Claude, Cursor, and other CLI-based AI coding assistants",
+  "description": "AI-powered Telegram bot with OpenCode integration for intelligent coding assistance via Telegram",
   "main": "dist/app.js",
   "bin": {
-    "ytbot": "dist/cli.js"
+    "telegramcoder": "dist/cli.js"
   },
   "files": [
     "dist/**/*",
@@ -24,10 +24,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "doPublish": "npm run build:prod && npm version patch && npm publish --access public",
     "pm2:start": "npm run build:prod && pm2 start ecosystem.config.cjs",
-    "pm2:stop": "pm2 stop ytBOT",
+    "pm2:stop": "pm2 stop telegramCoder",
     "pm2:restart": "npm run build:prod && pm2 startOrRestart ecosystem.config.cjs",
-    "pm2:delete": "pm2 delete ytBOT",
-    "pm2:logs": "pm2 logs ytBOT",
+    "pm2:delete": "pm2 delete telegramCoder",
+    "pm2:logs": "pm2 logs telegramCoder",
     "pm2:monit": "pm2 monit",
     "pm2:status": "pm2 status"
   },
@@ -48,12 +48,12 @@
   "author": "Tommertom",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Tommertom/ytBOT.git"
+    "url": "git+https://github.com/Tommertom/telegramCoder.git"
   },
   "bugs": {
-    "url": "https://github.com/Tommertom/ytBOT/issues"
+    "url": "https://github.com/Tommertom/telegramCoder/issues"
   },
-  "homepage": "https://github.com/Tommertom/ytBOT#readme",
+  "homepage": "https://github.com/Tommertom/telegramCoder#readme",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -72,6 +72,7 @@
     "@ai-sdk/google": "^2.0.11",
     "@ai-sdk/openai": "^2.0.23",
     "@google/genai": "^1.24.0",
+    "@opencode-ai/sdk": "^1.0.224",
     "ai": "^5.0.30",
     "archiver": "^7.0.1",
     "dotenv": "^17.2.2",

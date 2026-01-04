@@ -1,7 +1,7 @@
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Load .env file from ytBOT directory
+// Load .env file from telegramCoder directory
 const envConfig = dotenv.config({ path: path.join(__dirname, '.env') });
 
 if (envConfig.error) {
@@ -11,9 +11,9 @@ if (envConfig.error) {
 module.exports = {
   apps: [
     {
-      name: "ytBOT",
+      name: "telegramCoder",
       script: "./dist/app.js",
-      cwd: "/home/tom/ytBOT",
+      cwd: "/home/tom/telegramCoder",
       instances: 1,
       autorestart: true,
       watch: false,

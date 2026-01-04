@@ -20,11 +20,9 @@ ADMIN_USER_ID=
 # Set to 0 to disable auto-deletion of messages
 MESSAGE_DELETE_TIMEOUT=10000
 
-# Playlist Configuration (optional)
-# Maximum number of videos to download from a playlist (default: 50)
-# Prevents excessive resource usage and long download times
-MAX_PLAYLIST_SIZE=50
+# OpenCode Configuration (optional)
+# OpenCode server URL (default: http://localhost:4096)
+# If you have an OpenCode server running on a different host or port, specify it here
+# Example: OPENCODE_SERVER_URL=http://192.168.1.100:4096
+OPENCODE_SERVER_URL=http://localhost:4096
 
-# Delay between playlist video downloads in milliseconds (default: 1000 = 1 second)
-# Helps prevent rate limiting by YouTube
-PLAYLIST_DOWNLOAD_DELAY_MS=1000

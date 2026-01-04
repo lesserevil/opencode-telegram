@@ -18,10 +18,6 @@ export class ConfigService {
     // Message Configuration
     private readonly messageDeleteTimeout: number;
 
-    // Playlist Configuration
-    private readonly maxPlaylistSize: number;
-    private readonly playlistDownloadDelay: number;
-
     // System Environment
     private readonly homeDirectory: string;
     private readonly systemEnv: { [key: string]: string };
@@ -54,16 +50,12 @@ export class ConfigService {
         this.autoKill = autoKillValue === 'true' || autoKillValue === '1';
 
         // Load media configuration
-        this.mediaTmpLocation = process.env.MEDIA_TMP_LOCATION || '/tmp/ytBOT_media';
+        this.mediaTmpLocation = process.env.MEDIA_TMP_LOCATION || '/tmp/telegramcoder_media';
         const cleanUpValue = process.env.CLEAN_UP_MEDIADIR?.toLowerCase();
         this.cleanUpMediaDir = cleanUpValue === 'true' || cleanUpValue === '1';
 
         // Load message configuration
         this.messageDeleteTimeout = parseInt(process.env.MESSAGE_DELETE_TIMEOUT || '10000', 10);
-
-        // Load playlist configuration
-        this.maxPlaylistSize = parseInt(process.env.MAX_PLAYLIST_SIZE || '50', 10);
-        this.playlistDownloadDelay = parseInt(process.env.PLAYLIST_DOWNLOAD_DELAY_MS || '1000', 10);
 
         // Load system environment
         this.homeDirectory = process.env.HOME || '/tmp';
@@ -101,15 +93,6 @@ export class ConfigService {
         return this.messageDeleteTimeout;
     }
 
-    // Playlist Configuration Getters
-    getMaxPlaylistSize(): number {
-        return this.maxPlaylistSize;
-    }
-
-    getPlaylistDownloadDelay(): number {
-        return this.playlistDownloadDelay;
-    }
-
     // System Environment Getters
     getHomeDirectory(): string {
         return this.homeDirectory;
@@ -139,8 +122,6 @@ export class ConfigService {
   - Auto Kill: ${this.autoKill}
   - Media Location: ${this.mediaTmpLocation}
   - Clean Up Media Dir: ${this.cleanUpMediaDir}
-  - Message Delete Timeout: ${this.messageDeleteTimeout}ms
-  - Max Playlist Size: ${this.maxPlaylistSize}
-  - Playlist Download Delay: ${this.playlistDownloadDelay}ms`;
+  - Message Delete Timeout: ${this.messageDeleteTimeout}ms`;
     }
 }

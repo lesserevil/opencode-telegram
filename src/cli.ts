@@ -1,6 +1,6 @@
 /**
- * CLI entry point for ytBOT
- * Allows running via npx: npx ytbot
+ * CLI entry point for TelegramCoder
+ * Allows running via npx: npx @tommertom/telegramcoder
  */
 
 import { spawn } from 'child_process';
@@ -157,7 +157,7 @@ MESSAGE_DELETE_TIMEOUT=10000
 const args = process.argv.slice(2);
 const dockerFlag = args.includes('--docker');
 
-console.log('🤖 ytBOT - AI-Powered Telegram Terminal Bot');
+console.log('🤖 TelegramCoder - AI-Powered Telegram Bot');
 console.log('================================================\n');
 
 // Handle --docker flag
@@ -175,9 +175,9 @@ function startBot() {
     // Windows compatibility warning
     if (process.platform === 'win32') {
         console.log('⚠️  Windows is not supported for direct installation.');
-        console.log('   ytBOT uses node-pty which requires native compilation.');
+        console.log('   TelegramCoder uses node-pty which requires native compilation.');
         console.log('\n   📦 Please use Docker instead:');
-        console.log('   See https://github.com/Tommertom/ytBOT/blob/main/DOCKER_GUIDE.md\n');
+        console.log('   See https://github.com/Tommertom/telegramCoder/blob/main/DOCKER_GUIDE.md\n');
     }
 
     // Check if .env file exists in current directory
@@ -218,7 +218,7 @@ function startBot() {
         process.exit(1);
     }
 
-    console.log('🚀 Starting ytBOT...\n');
+    console.log('🚀 Starting TelegramCoder...\n');
 
     // Start the main application
     const appPath = join(__dirname, 'app.js');
@@ -235,13 +235,13 @@ function startBot() {
 
     child.on('exit', (code) => {
         if (code !== 0) {
-            console.error(`\n❌ ytBOT exited with code ${code}`);
+            console.error(`\n❌ TelegramCoder exited with code ${code}`);
             process.exit(code || 1);
         }
     });
 
     child.on('error', (err) => {
-        console.error(`\n❌ Failed to start ytBOT: ${err.message}`);
+        console.error(`\n❌ Failed to start TelegramCoder: ${err.message}`);
         process.exit(1);
     });
 

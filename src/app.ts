@@ -1,13 +1,13 @@
 import { Bot } from "grammy";
 import { ConfigService } from './services/config.service.js';
-import { YouTubeService } from './features/youtube/youtube.service.js';
-import { YouTubeBot } from './features/youtube/youtube.bot.js';
+import { OpenCodeService } from './features/opencode/opencode.service.js';
+import { OpenCodeBot } from './features/opencode/opencode.bot.js';
 import { AccessControlMiddleware } from './middleware/access-control.middleware.js';
 import dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 
-console.log('[ytBot] Starting ytBot...');
+console.log('[TelegramCoder] Starting bot...');
 
 dotenv.config();
 
@@ -16,33 +16,33 @@ const configService = new ConfigService();
 
 try {
     configService.validate();
-    console.log('[ytBot] Configuration loaded successfully');
+    console.log('[TelegramCoder] Configuration loaded successfully');
     console.log(configService.getDebugInfo());
 } catch (error) {
-    console.error('[ytBot] Configuration error:', error);
+    console.error('[TelegramCoder] Configuration error:', error);
     process.exit(1);
 }
 
 // Get the first bot token
 const tokens = configService.getTelegramBotTokens();
 if (tokens.length === 0) {
-    console.error('[ytBot] No bot tokens found in configuration');
+    console.error('[TelegramCoder] No bot tokens found in configuration');
     process.exit(1);
 }
 
 const botToken = tokens[0];
-console.log(`[ytBot] Initializing with token: ${botToken.substring(0, 10)}...`);
+console.log(`[TelegramCoder] Initializing with token: ${botToken.substring(0, 10)}...`);
 
 // Create bot instance
 const bot = new Bot(botToken);
 
 // Initialize services
-const youtubeService = new YouTubeService();
+const opencodeService = new OpenCodeService();
 
 // Set global error handler to prevent crashes
 bot.catch((err) => {
     const ctx = err.ctx;
-    console.error(`[ytBot] Error while handling update ${ctx.update.update_id}:`, err.error);
+    console.error(`[TelegramCoder] Error while handling update ${ctx.update.update_id}:`, err.error);
 });
 
 // Set config service for access control
@@ -51,23 +51,23 @@ AccessControlMiddleware.setConfigService(configService);
 // Set bot instance for access control (needed for admin notifications)
 AccessControlMiddleware.setBot(bot);
 
-// Initialize the YouTube bot
-const youtubeBot = new YouTubeBot(botToken, youtubeService, configService);
+// Initialize the OpenCode bot
+const opencodeBot = new OpenCodeBot(opencodeService, configService);
 
 // Register handlers
-youtubeBot.registerHandlers(bot);
+opencodeBot.registerHandlers(bot);
 
 async function startBot() {
     try {
-        console.log('[ytBot] Starting initialization...');
+        console.log('[TelegramCoder] Starting initialization...');
 
         // Clean up media directory if configured
         if (configService.shouldCleanUpMediaDir()) {
             const botMediaPath = path.join(configService.getMediaTmpLocation(), 'bot-1');
             if (fs.existsSync(botMediaPath)) {
-                console.log(`[ytBot] Cleaning up media directory: ${botMediaPath}`);
+                console.log(`[TelegramCoder] Cleaning up media directory: ${botMediaPath}`);
                 fs.rmSync(botMediaPath, { recursive: true, force: true });
-                console.log('[ytBot] ✅ Media directory cleaned');
+                console.log('[TelegramCoder] ✅ Media directory cleaned');
             }
         }
 
@@ -75,27 +75,29 @@ async function startBot() {
         try {
             const me = await bot.api.getMe();
             const fullName = [me.first_name, me.last_name].filter(Boolean).join(" ");
-            console.log(`[ytBot] Bot info: ${fullName} (@${me.username})`);
+            console.log(`[TelegramCoder] Bot info: ${fullName} (@${me.username})`);
         } catch (error) {
-            console.error('[ytBot] Failed to get bot info:', error);
+            console.error('[TelegramCoder] Failed to get bot info:', error);
         }
 
         // Set bot commands for Telegram UI
         try {
             await bot.api.setMyCommands([
                 { command: 'start', description: 'Show help message' },
-                { command: 'help', description: 'Show help message' }
+                { command: 'help', description: 'Show help message' },
+                { command: 'opencode', description: 'Start an OpenCode session' },
+                { command: 'prompt', description: 'Send a prompt to OpenCode' }
             ]);
-            console.log('[ytBot] ✅ Bot commands registered');
+            console.log('[TelegramCoder] ✅ Bot commands registered');
         } catch (error) {
-            console.error('[ytBot] Failed to set bot commands:', error);
+            console.error('[TelegramCoder] Failed to set bot commands:', error);
         }
 
         // Start the bot
         await bot.start();
-        console.log('[ytBot] ✅ Bot started successfully');
+        console.log('[TelegramCoder] ✅ Bot started successfully');
     } catch (error) {
-        console.error('[ytBot] Failed to start:', error);
+        console.error('[TelegramCoder] Failed to start:', error);
         process.exit(1);
     }
 }
@@ -107,21 +109,21 @@ let shuttingDown = false;
  */
 async function gracefulShutdown(signal: string): Promise<void> {
     if (shuttingDown) {
-        console.log('[ytBot] Shutdown already in progress...');
+        console.log('[TelegramCoder] Shutdown already in progress...');
         return;
     }
 
     shuttingDown = true;
-    console.log(`[ytBot] Received ${signal}, shutting down gracefully...`);
+    console.log(`[TelegramCoder] Received ${signal}, shutting down gracefully...`);
 
     try {
         // Stop bot
         await bot.stop();
 
-        console.log('[ytBot] ✅ Shutdown complete');
+        console.log('[TelegramCoder] ✅ Shutdown complete');
         process.exit(0);
     } catch (error) {
-        console.error('[ytBot] Error during shutdown:', error);
+        console.error('[TelegramCoder] Error during shutdown:', error);
         process.exit(1);
     }
 }
@@ -132,17 +134,17 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('[ytBot] Unhandled Rejection at:', promise, 'reason:', reason);
+    console.error('[TelegramCoder] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-    console.error('[ytBot] Uncaught Exception:', error);
+    console.error('[TelegramCoder] Uncaught Exception:', error);
     gracefulShutdown('UNCAUGHT_EXCEPTION');
 });
 
 // Start the bot
 startBot().catch((error) => {
-    console.error('[ytBot] Fatal error:', error);
+    console.error('[TelegramCoder] Fatal error:', error);
     process.exit(1);
 });
