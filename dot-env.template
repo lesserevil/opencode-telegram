@@ -1,0 +1,30 @@
+# Environment Variables
+
+# Your Telegram bot tokens from @BotFather, separated by commas
+# You can specify one or more tokens to run multiple bot instances
+# Example: TELEGRAM_BOT_TOKENS=1234567890:AABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQQrrss,9876543210:ZZYYXXWWVVUUTTSSRRQQPPOONNMMllkkjjii
+TELEGRAM_BOT_TOKENS=
+
+# Comma-separated list of Telegram user IDs allowed to use the bot
+# Example: ALLOWED_USER_IDS=123456789,987654321
+ALLOWED_USER_IDS=
+
+# Admin user ID who receives notifications about unauthorized access attempts
+# This user will be notified when someone not in ALLOWED_USER_IDS tries to use the bot
+# Example: ADMIN_USER_ID=123456789
+ADMIN_USER_ID=
+
+# Message Configuration
+# Message auto-delete timeout in milliseconds (default: 10000 = 10 seconds)
+# Time to wait before automatically deleting confirmation messages
+# Set to 0 to disable auto-deletion of messages
+MESSAGE_DELETE_TIMEOUT=10000
+
+# Playlist Configuration (optional)
+# Maximum number of videos to download from a playlist (default: 50)
+# Prevents excessive resource usage and long download times
+MAX_PLAYLIST_SIZE=50
+
+# Delay between playlist video downloads in milliseconds (default: 1000 = 1 second)
+# Helps prevent rate limiting by YouTube
+PLAYLIST_DOWNLOAD_DELAY_MS=1000
