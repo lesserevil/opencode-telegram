@@ -97,7 +97,7 @@ export class OpenCodeBot {
                         );
 
                         const startResult = await this.serverService.startServer();
-                        
+
                         if (!startResult.success) {
                             await ctx.api.editMessageText(
                                 ctx.chat!.id,
@@ -121,7 +121,7 @@ export class OpenCodeBot {
                         throw error;
                     }
                 }
-                
+
                 const successMessage = await ctx.api.editMessageText(
                     ctx.chat!.id,
                     statusMessage.message_id,
@@ -131,8 +131,9 @@ export class OpenCodeBot {
                 );
 
                 // Store chat context and start event streaming
-                this.opencodeService.updateSessionContext(userId, ctx.chat!.id, successMessage.message_id);
-                
+                const messageId = (typeof successMessage === "object" && successMessage && "message_id" in successMessage) ? (successMessage as any).message_id : statusMessage.message_id;
+                this.opencodeService.updateSessionContext(userId, ctx.chat!.id, messageId);
+
                 // Start event streaming in background
                 this.opencodeService.startEventStream(userId, ctx).catch(error => {
                     console.error("Event stream error:", error);
@@ -187,23 +188,28 @@ export class OpenCodeBot {
                         this.escapeHtml(response),
                         { parse_mode: "HTML" }
                     );
+
+                    // Schedule deletion after showing the response
+                    const deleteTimeout = this.configService.getMessageDeleteTimeout();
+                    if (deleteTimeout > 0) {
+                        await MessageUtils.scheduleMessageDeletion(
+                            ctx,
+                            statusMessage.message_id,
+                            deleteTimeout
+                        );
+                    }
                 } else {
-                    // Delete status message and send response in chunks
-                    await ctx.api.deleteMessage(ctx.chat!.id, statusMessage.message_id);
-                    
+                    // Schedule deletion of status message after a short interval
+                    await MessageUtils.scheduleMessageDeletion(
+                        ctx,
+                        statusMessage.message_id,
+                        2000  // Delete status message after 2 seconds
+                    );
+
                     const chunks = this.splitIntoChunks(response, maxLength);
                     for (const chunk of chunks) {
                         await ctx.reply(this.escapeHtml(chunk), { parse_mode: "HTML" });
                     }
-                }
-
-                const deleteTimeout = this.configService.getMessageDeleteTimeout();
-                if (deleteTimeout > 0) {
-                    await MessageUtils.scheduleMessageDeletion(
-                        ctx,
-                        statusMessage.message_id,
-                        deleteTimeout
-                    );
                 }
 
             } catch (error) {
@@ -267,7 +273,7 @@ export class OpenCodeBot {
             }
 
             const success = await this.opencodeService.deleteSession(userId);
-            
+
             if (success) {
                 await ctx.reply("✅ OpenCode session ended successfully.");
             } else {
