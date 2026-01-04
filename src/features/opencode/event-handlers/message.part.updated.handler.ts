@@ -6,6 +6,13 @@ import { MessageUtils } from "../../../utils/message.utils.js";
 
 type MessagePartUpdatedEvent = Extract<Event, { type: "message.part.updated" }>;
 
+// Throttle state per session (keyed by chatId)
+const throttleState = new Map<string, {
+    lastUpdateTime: number;
+    pendingText: string | null;
+    timerId: NodeJS.Timeout | null;
+}>();
+
 export default async function messagePartUpdatedHandler(
     event: MessagePartUpdatedEvent,
     ctx: Context,
@@ -36,19 +43,68 @@ export default async function messagePartUpdatedHandler(
 
     if (part.type === "text") {
         const text = escapeHtml(part.text ?? "");
-        if (userSession.lastMessageId) {
-            try {
-                await ctx.api.editMessageText(chatId, userSession.lastMessageId, text, { parse_mode: "HTML" });
-            } catch (err) {
-                // fallback to send and store id
-                const sent = await ctx.api.sendMessage(chatId, text, { parse_mode: "HTML" });
-                userSession.lastMessageId = sent.message_id;
-            }
-        } else {
-            const sent = await ctx.api.sendMessage(chatId, text, { parse_mode: "HTML" });
-            userSession.lastMessageId = sent.message_id;
-            userSession.chatId = chatId;
+        const sessionKey = `${chatId}`;
+
+        // Get or create throttle state for this session
+        let state = throttleState.get(sessionKey);
+        if (!state) {
+            state = {
+                lastUpdateTime: 0,
+                pendingText: null,
+                timerId: null
+            };
+            throttleState.set(sessionKey, state);
         }
+
+        const now = Date.now();
+        const timeSinceLastUpdate = now - state.lastUpdateTime;
+
+        // Function to actually send the update
+        const sendUpdate = async (textToSend: string) => {
+            if (userSession.lastMessageId) {
+                try {
+                    await ctx.api.editMessageText(chatId, userSession.lastMessageId, textToSend, { parse_mode: "HTML" });
+                } catch (err) {
+                    // fallback to send and store id
+                    const sent = await ctx.api.sendMessage(chatId, textToSend, { parse_mode: "HTML" });
+                    userSession.lastMessageId = sent.message_id;
+                }
+            } else {
+                const sent = await ctx.api.sendMessage(chatId, textToSend, { parse_mode: "HTML" });
+                userSession.lastMessageId = sent.message_id;
+                userSession.chatId = chatId;
+            }
+            state!.lastUpdateTime = Date.now();
+            state!.pendingText = null;
+        };
+
+        // If 5 seconds have passed since last update, send immediately
+        if (timeSinceLastUpdate >= 5000) {
+            // Clear any pending timer
+            if (state.timerId) {
+                clearTimeout(state.timerId);
+                state.timerId = null;
+            }
+            await sendUpdate(text);
+        } else {
+            // Store pending text
+            state.pendingText = text;
+
+            // Clear existing timer if any
+            if (state.timerId) {
+                clearTimeout(state.timerId);
+            }
+
+            // Set timer to send after the remaining time until 5 seconds from last update
+            const delay = 5000 - timeSinceLastUpdate;
+            state.timerId = setTimeout(async () => {
+                if (state!.pendingText) {
+                    await sendUpdate(state!.pendingText);
+                }
+                state!.timerId = null;
+            }, delay);
+        }
+
         return null;
     }
 

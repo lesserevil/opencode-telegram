@@ -9,5 +9,6 @@ export default async function vcsBranchUpdatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🌿 <b>VCS branch updated:</b> ${event.properties.branch || "(unknown)"}`;
+    console.log(event.type);
+    return null;
 }

@@ -10,6 +10,6 @@ export default async function permissionRepliedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const props = event.properties;
-    return `💬 <b>Permission replied:</b> ${escapeHtml(props.response)} (permission=${escapeHtml(props.permissionID)})`;
+    console.log(event.type);
+    return null;
 }

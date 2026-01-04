@@ -9,5 +9,6 @@ export default async function lspUpdatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `✨ <b>LSP updated</b>`;
+    console.log(event.type);
+    return null;
 }

@@ -9,8 +9,6 @@ export default async function sessionStatusHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const status = event.properties.status;
-    const statusType = status.type;
-    const emoji = statusType === "busy" ? "🟢" : statusType === "idle" ? "⏸️" : "🔄";
-    return `${emoji} <b>Session Status:</b> ${statusType}`;
+    console.log(event.type);
+    return null;
 }

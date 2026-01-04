@@ -10,5 +10,6 @@ export default async function tuiPromptAppendHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🖊️ <b>TUI prompt append:</b> ${escapeHtml(event.properties.text)}`;
+    console.log(event.type);
+    return null;
 }

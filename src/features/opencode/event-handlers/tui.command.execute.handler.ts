@@ -10,5 +10,6 @@ export default async function tuiCommandExecuteHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `⌨️ <b>TUI command:</b> ${escapeHtml(event.properties.command)}`;
+    console.log(event.type);
+    return null;
 }

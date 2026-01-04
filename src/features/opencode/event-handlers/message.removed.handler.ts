@@ -10,6 +10,6 @@ export default async function messageRemovedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🗑️ <b>Message Removed</b>\n` +
-        `Message ID: <code>${escapeHtml(event.properties.messageID)}</code>`;
+    console.log(event.type);
+    return null;
 }

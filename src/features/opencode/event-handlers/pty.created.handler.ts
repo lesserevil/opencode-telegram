@@ -10,8 +10,6 @@ export default async function ptyCreatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const pty = event.properties.info;
-    return `🖥️ <b>Terminal Created</b>\n` +
-        `Command: <code>${escapeHtml(pty.command)}</code>\n` +
-        `PID: ${pty.pid}`;
+    console.log(event.type);
+    return null;
 }

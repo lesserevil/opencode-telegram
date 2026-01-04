@@ -9,5 +9,6 @@ export default async function sessionIdleHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return "💤 <b>Session is now idle</b>";
+    console.log(event.type);
+    return null;
 }

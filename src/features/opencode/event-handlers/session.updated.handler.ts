@@ -10,6 +10,6 @@ export default async function sessionUpdatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const info = event.properties.info;
-    return `✏️ <b>Session updated:</b> ${escapeHtml(info.title || info.id)}`;
+    console.log(event.type);
+    return null;
 }

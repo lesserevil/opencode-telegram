@@ -10,5 +10,6 @@ export default async function serverInstanceDisposedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🗑️ <b>Server instance disposed:</b> <code>${escapeHtml(event.properties.directory)}</code>`;
+    console.log(event.type);
+    return null;
 }

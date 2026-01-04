@@ -10,8 +10,6 @@ export default async function messageUpdatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const message = event.properties.info;
-    return `📝 <b>Message Updated</b>\n` +
-        `Role: ${message.role}\n` +
-        `ID: <code>${escapeHtml(message.id)}</code>`;
+    console.log(event.type);
+    return null;
 }

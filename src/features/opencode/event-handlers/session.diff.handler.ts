@@ -9,6 +9,6 @@ export default async function sessionDiffHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const diff = event.properties.diff || [];
-    return `🔧 <b>Session diff:</b> ${diff.length} files changed`;
+    console.log(event.type);
+    return null;
 }

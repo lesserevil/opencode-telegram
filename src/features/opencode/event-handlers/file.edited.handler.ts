@@ -10,5 +10,6 @@ export default async function fileEditedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `📄 <b>File Edited:</b>\n<code>${escapeHtml(event.properties.file)}</code>`;
+    console.log(event.type);
+    return null;
 }

@@ -9,5 +9,6 @@ export default async function installationUpdatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `⬆️ <b>Installation updated:</b> ${event.properties.version}`;
+    console.log(event.type);
+    return null;
 }

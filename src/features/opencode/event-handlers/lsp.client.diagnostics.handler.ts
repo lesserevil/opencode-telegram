@@ -10,5 +10,6 @@ export default async function lspClientDiagnosticsHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🔍 <b>LSP diagnostics:</b> server=${escapeHtml(event.properties.serverID)}, path=<code>${escapeHtml(event.properties.path)}</code>`;
+    console.log(event.type);
+    return null;
 }

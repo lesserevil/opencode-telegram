@@ -10,6 +10,6 @@ export default async function tuiToastShowHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const p = event.properties;
-    return `🔔 <b>TUI toast (${escapeHtml(p.variant)}):</b> ${escapeHtml(p.message)}${p.title ? ` — ${escapeHtml(p.title)}` : ""}`;
+    console.log(event.type);
+    return null;
 }

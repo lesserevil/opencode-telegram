@@ -9,6 +9,6 @@ export default async function todoUpdatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const todos = event.properties.todos || [];
-    return `📝 <b>Todos updated:</b> ${todos.length} items`;
+    console.log(event.type);
+    return null;
 }

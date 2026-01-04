@@ -10,6 +10,6 @@ export default async function permissionUpdatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const p = event.properties;
-    return `🔐 <b>Permission updated:</b> ${escapeHtml(p.title)} (id=<code>${escapeHtml(p.id)}</code>)`;
+    console.log(event.type);
+    return null;
 }

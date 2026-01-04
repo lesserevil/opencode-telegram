@@ -9,5 +9,6 @@ export default async function sessionCompactedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🧹 <b>Session compacted:</b> ${event.properties.sessionID}`;
+    console.log(event.type);
+    return null;
 }

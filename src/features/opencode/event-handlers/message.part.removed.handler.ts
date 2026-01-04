@@ -9,5 +9,6 @@ export default async function messagePartRemovedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🗑️ <b>Message part removed:</b> ${event.properties.partID}`;
+    console.log(event.type);
+    return null;
 }

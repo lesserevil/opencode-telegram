@@ -9,5 +9,6 @@ export default async function installationUpdateAvailableHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🔔 <b>Update available:</b> ${event.properties.version}`;
+    console.log(event.type);
+    return null;
 }

@@ -10,6 +10,6 @@ export default async function ptyUpdatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const info = event.properties.info;
-    return `🖥️ <b>PTY updated:</b> ${escapeHtml(info.title)} (status=${escapeHtml(info.status)})`;
+    console.log(event.type);
+    return null;
 }

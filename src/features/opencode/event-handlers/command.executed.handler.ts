@@ -10,6 +10,6 @@ export default async function commandExecutedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const props = event.properties;
-    return `⚙️ <b>Command executed:</b> ${escapeHtml(props.name)} (session=${escapeHtml(props.sessionID)})`;
+    console.log(event.type);
+    return null;
 }

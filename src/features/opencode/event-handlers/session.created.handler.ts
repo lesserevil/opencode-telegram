@@ -10,6 +10,6 @@ export default async function sessionCreatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const info = event.properties.info;
-    return `📁 <b>Session created:</b> ${escapeHtml(info.title)} (id=<code>${escapeHtml(info.id)}</code>)`;
+    console.log(event.type);
+    return null;
 }

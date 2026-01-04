@@ -9,5 +9,6 @@ export default async function ptyDeletedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🗑️ <b>PTY deleted:</b> ${event.properties.id}`;
+    console.log(event.type);
+    return null;
 }

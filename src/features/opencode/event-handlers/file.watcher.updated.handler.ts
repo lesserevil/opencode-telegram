@@ -9,6 +9,6 @@ export default async function fileWatcherUpdatedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const p = event.properties;
-    return `📂 <b>File watcher:</b> ${p.event} ${p.file}`;
+    console.log(event.type);
+    return null;
 }

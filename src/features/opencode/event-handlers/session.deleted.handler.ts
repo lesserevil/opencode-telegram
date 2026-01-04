@@ -9,6 +9,6 @@ export default async function sessionDeletedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const info = event.properties.info;
-    return `🗑️ <b>Session deleted:</b> ${info.id}`;
+    console.log(event.type);
+    return null;
 }

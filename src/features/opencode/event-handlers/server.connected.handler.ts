@@ -9,5 +9,6 @@ export default async function serverConnectedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🔌 <b>Server connected</b>`;
+    console.log(event.type);
+    return null;
 }

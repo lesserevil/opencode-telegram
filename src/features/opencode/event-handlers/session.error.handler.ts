@@ -10,7 +10,6 @@ export default async function sessionErrorHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const error = event.properties.error;
-    const errorMsg = error ? JSON.stringify(error, null, 2) : "Unknown error";
-    return `❌ <b>Session Error:</b>\n<pre>${escapeHtml(errorMsg)}</pre>`;
+    console.log(event.type);
+    return null;
 }

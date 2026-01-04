@@ -10,7 +10,6 @@ export default async function ptyExitedHandler(
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    return `🛑 <b>Terminal Exited</b>\n` +
-        `ID: <code>${escapeHtml(event.properties.id)}</code>\n` +
-        `Exit Code: ${event.properties.exitCode}`;
+    console.log(event.type);
+    return null;
 }
