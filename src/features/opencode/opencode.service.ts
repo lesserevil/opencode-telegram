@@ -1,6 +1,8 @@
 import { createOpencodeClient } from "@opencode-ai/sdk";
+import type { Event } from "@opencode-ai/sdk";
 import type { Context } from "grammy";
 import type { UserSession } from "./opencode.types.js";
+import { processEvent } from "./opencode.event-handlers.js";
 
 export class OpenCodeService {
     private userSessions: Map<number, UserSession> = new Map();
@@ -69,25 +71,14 @@ export class OpenCodeService {
 
         try {
             const events = await client.event.subscribe();
-            
+
             for await (const event of events.stream) {
                 if (abortController.signal.aborted) {
                     break;
                 }
 
-                // Filter and format events to send to user
-                const formattedEvent = this.formatEvent(event);
-                if (formattedEvent && userSession.chatId) {
-                    try {
-                        await ctx.api.sendMessage(
-                            userSession.chatId,
-                            formattedEvent,
-                            { parse_mode: "HTML" }
-                        );
-                    } catch (error) {
-                        console.error("Failed to send event to user:", error);
-                    }
-                }
+                // Process event through handler
+                await processEvent(event, ctx, userSession);
             }
         } catch (error) {
             console.error("Event stream error:", error);
@@ -102,24 +93,6 @@ export class OpenCodeService {
             controller.abort();
             this.eventAbortControllers.delete(userId);
         }
-    }
-
-    private formatEvent(event: any): string | null {
-        // Send all events
-        const eventType = event.type;
-        const properties = event.properties || {};
-        
-        // Format event with type and properties
-        const propsStr = JSON.stringify(properties, null, 2);
-        return `🔔 <b>Event:</b> ${this.escapeHtml(eventType)}\n<pre>${this.escapeHtml(propsStr)}</pre>`;
-    }
-
-    private escapeHtml(text: string): string {
-        return String(text)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;");
     }
 
     async sendPrompt(userId: number, text: string): Promise<string> {
