@@ -190,9 +190,15 @@ export class OpenCodeService {
                 return [];
             }
 
-            // Filter for primary agents only and extract relevant info
+            // Internal agents to filter out
+            const internalAgents = ['compaction', 'title', 'summary'];
+
+            // Filter for primary agents only, exclude internal agents
             return result.data
-                .filter((agent: any) => agent.mode === "primary" || agent.mode === "all")
+                .filter((agent: any) => 
+                    (agent.mode === "primary" || agent.mode === "all") &&
+                    !internalAgents.includes(agent.name)
+                )
                 .map((agent: any) => ({
                     name: agent.name || "unknown",
                     mode: agent.mode,
@@ -223,12 +229,29 @@ export class OpenCodeService {
                 }
             });
 
-            // Get current session to retrieve active agent
-            const sessionResult = await client.session.get({
+            // Get config to retrieve active agent name
+            const configResult = await client.config.get();
+
+            // The config contains agent configurations, but we need to determine which is active
+            // Since we don't have a direct "current agent" field, we'll get it from the command response
+            // or the most recent message's agent field
+            
+            // Try to get the last message to see which agent is being used
+            const messagesResult = await client.session.messages({
                 path: { id: userSession.sessionId }
             });
 
-            const currentAgent = sessionResult.data?.agent || "unknown";
+            // Get the most recent user message's agent
+            let currentAgent = "unknown";
+            if (messagesResult.data && messagesResult.data.length > 0) {
+                const lastUserMessage = messagesResult.data
+                    .filter((msg: any) => msg.role === "user")
+                    .pop();
+                
+                if (lastUserMessage && lastUserMessage.agent) {
+                    currentAgent = lastUserMessage.agent;
+                }
+            }
 
             return { success: true, currentAgent };
         } catch (error) {
