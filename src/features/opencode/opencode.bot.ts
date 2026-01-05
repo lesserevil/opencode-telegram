@@ -263,20 +263,6 @@ export class OpenCodeBot {
     }
 
     private async sendPromptToOpenCode(ctx: Context, userId: number, promptText: string): Promise<void> {
-        // Send a status message
-        const statusMessage = await ctx.reply("🔄 Sending prompt to OpenCode...");
-        let messageDeleted = false;
-        
-        // Schedule deletion of status message
-        const deleteTimeout = this.configService.getMessageDeleteTimeout();
-        if (deleteTimeout > 0) {
-            await MessageUtils.scheduleMessageDeletion(
-                ctx,
-                statusMessage.message_id,
-                deleteTimeout
-            );
-        }
-
         try {
             const response = await this.opencodeService.sendPrompt(userId, promptText);
 
@@ -284,14 +270,6 @@ export class OpenCodeBot {
             const isMarkdown = this.isMarkdownContent(response);
             
             if (isMarkdown) {
-                // Delete status message
-                try {
-                    await ctx.api.deleteMessage(ctx.chat!.id, statusMessage.message_id);
-                    messageDeleted = true;
-                } catch (e) {
-                    // Message might already be deleted
-                }
-                
                 // Send as markdown file
                 const buffer = Buffer.from(response, 'utf-8');
                 await ctx.replyWithDocument(new InputFile(buffer, "response.md"));
@@ -301,36 +279,8 @@ export class OpenCodeBot {
             // Split response if it's too long (Telegram has a 4096 character limit)
             const maxLength = 4000;
             if (response.length <= maxLength) {
-                try {
-                    await ctx.api.editMessageText(
-                        ctx.chat!.id,
-                        statusMessage.message_id,
-                        this.escapeHtml(response),
-                        { parse_mode: "HTML" }
-                    );
-                } catch (e) {
-                    // Message might have been deleted, send as new message
-                    await ctx.reply(this.escapeHtml(response), { parse_mode: "HTML" });
-                    messageDeleted = true;
-                }
-
-                // Schedule deletion after showing the response
-                if (deleteTimeout > 0 && !messageDeleted) {
-                    await MessageUtils.scheduleMessageDeletion(
-                        ctx,
-                        statusMessage.message_id,
-                        deleteTimeout
-                    );
-                }
+                await ctx.reply(this.escapeHtml(response), { parse_mode: "HTML" });
             } else {
-                // Delete status message immediately and send response in chunks
-                try {
-                    await ctx.api.deleteMessage(ctx.chat!.id, statusMessage.message_id);
-                    messageDeleted = true;
-                } catch (e) {
-                    // Message might already be deleted
-                }
-
                 const chunks = this.splitIntoChunks(response, maxLength);
                 for (const chunk of chunks) {
                     await ctx.reply(this.escapeHtml(chunk), { parse_mode: "HTML" });
@@ -338,22 +288,7 @@ export class OpenCodeBot {
             }
 
         } catch (error) {
-            // Try to edit the status message with the error, but only if it wasn't deleted
-            if (!messageDeleted) {
-                try {
-                    await ctx.api.editMessageText(
-                        ctx.chat!.id,
-                        statusMessage.message_id,
-                        ErrorUtils.createErrorMessage("send prompt to OpenCode", error)
-                    );
-                } catch (e) {
-                    // Message was deleted, send error as new message
-                    await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
-                }
-            } else {
-                // Message already deleted, send error as new message
-                await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
-            }
+            await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
         }
     }
 
