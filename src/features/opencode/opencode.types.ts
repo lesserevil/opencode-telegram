@@ -8,4 +8,5 @@ export interface UserSession {
     createdAt: Date;
     chatId?: number;
     lastMessageId?: number;
+    currentAgent?: string; // Track the current agent for this session
 }

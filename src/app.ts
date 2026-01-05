@@ -86,7 +86,9 @@ async function startBot() {
                 { command: 'start', description: 'Show help message' },
                 { command: 'help', description: 'Show help message' },
                 { command: 'opencode', description: 'Start an OpenCode session' },
-                { command: 'prompt', description: 'Send a prompt to OpenCode' }
+                { command: 'rename', description: 'Rename current session' },
+                { command: 'endsession', description: 'End your OpenCode session' },
+                { command: 'esc', description: 'Abort current AI operation' }
             ]);
             console.log('[TelegramCoder] ✅ Bot commands registered');
         } catch (error) {

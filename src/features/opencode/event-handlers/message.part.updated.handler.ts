@@ -1,139 +1,161 @@
 import type { Event } from "@opencode-ai/sdk";
 import type { Context } from "grammy";
 import type { UserSession } from "../opencode.types.js";
-import { escapeHtml } from "./utils.js";
-import { MessageUtils } from "../../../utils/message.utils.js";
 
 type MessagePartUpdatedEvent = Extract<Event, { type: "message.part.updated" }>;
 
-// State per session (keyed by sessionId-chatId)
-const sessionState = new Map<string, {
-    messageId: number | null;
-    deleteTimer: NodeJS.Timeout | null;
-    lastReasoningTime: number;
-}>();
+let updateMessageId: number | null = null;
+let lastUpdateTime = 0;
+let deleteTimeout: NodeJS.Timeout | null = null;
+
+let reasoningMessageId: number | null = null;
+let reasoningDeleteTimeout: NodeJS.Timeout | null = null;
+
+let toolMessageId: number | null = null;
+let toolDeleteTimeout: NodeJS.Timeout | null = null;
 
 export default async function messagePartUpdatedHandler(
     event: MessagePartUpdatedEvent,
     ctx: Context,
     userSession: UserSession
 ): Promise<string | null> {
-    const part = event.properties.part;
-    if (!part) {
-        console.log("No part in message.part.updated event");
-        return null;
-    }
-    
-    // Filter events - only handle events for this user's session
-    if (part.sessionID !== userSession.sessionId) {
-        console.log(`Skipping event for different session: ${part.sessionID} (expected: ${userSession.sessionId})`);
-        return null;
-    }
-    
-    const chatId = ctx.chat?.id ?? userSession.chatId;
-    if (!chatId) {
-        console.log("No chat id available for message.part.updated event");
-        return null;
-    }
+    try {
+        const { part } = event.properties;
+        
+        // Handle reasoning parts separately
+        if (part.type === "reasoning") {
+            return await handleReasoningPart(ctx);
+        }
+        
+        // Handle tool calls separately
+        if (part.type === "tool") {
+            return await handleToolPart(ctx, part);
+        }
+        
+        // Only process text parts
+        if (part.type !== "text") {
+            return null;
+        }
 
-    // Use both sessionId and chatId for unique key
-    const sessionKey = `${userSession.sessionId}-${chatId}`;
-
-    // Get or create state for this session
-    let state = sessionState.get(sessionKey);
-    if (!state) {
-        state = {
-            messageId: null,
-            deleteTimer: null,
-            lastReasoningTime: 0
-        };
-        sessionState.set(sessionKey, state);
-    }
-
-    if (part.type === "reasoning") {
-        // Debounce: only send if 5 seconds have passed since last reasoning message
         const now = Date.now();
-        const timeSinceLastReasoning = now - state.lastReasoningTime;
         
-        if (timeSinceLastReasoning < 5000) {
-            console.log("Skipping reasoning message (debounced)");
-            return null;
+        // Clear existing delete timeout
+        if (deleteTimeout) {
+            clearTimeout(deleteTimeout);
+            deleteTimeout = null;
         }
-        
-        state.lastReasoningTime = now;
-        
-        const msg = await ctx.api.sendMessage(chatId, "💭 Reasoning...");
-        // use MessageUtils to schedule deletion; ensure ctx.chat is set so deletion can resolve chat id
-        const originalChat = ctx.chat;
-        if (!ctx.chat) (ctx as any).chat = { id: chatId } as any;
-        MessageUtils.scheduleMessageDeletion(ctx, msg.message_id, 3000).catch(err => {
-            console.error("Failed scheduling deletion via MessageUtils", err);
-        });
-        if (!originalChat) delete (ctx as any).chat;
-        return null;
-    }
 
-    if (part.type === "text") {
-        const text = escapeHtml(part.text ?? "");
-
-        // Validate text is not empty or whitespace-only
-        if (!text || text.trim().length === 0) {
-            console.log("Skipping empty or whitespace-only text update");
+        // Throttle: Check if 1 second has passed since last update
+        const timeSinceLastUpdate = now - lastUpdateTime;
+        if (updateMessageId && timeSinceLastUpdate < 1000) {
+            // Skip this update, but still set the delete timeout
+            deleteTimeout = setTimeout(() => {
+                deleteMessage(ctx);
+            }, 5000);
             return null;
         }
 
-        // Clear existing delete timer
-        if (state.deleteTimer) {
-            clearTimeout(state.deleteTimer);
-            state.deleteTimer = null;
-        }
+        // Update the last update time
+        lastUpdateTime = now;
 
-        // If no message exists, send one
-        if (!state.messageId) {
-            try {
-                const sent = await ctx.api.sendMessage(chatId, text, { parse_mode: "HTML" });
-                state.messageId = sent.message_id;
-                console.log(`Created new message ${sent.message_id} for session ${sessionKey}`);
-            } catch (err) {
-                console.error("Failed to send message:", err);
-                return null;
-            }
+        if (!updateMessageId) {
+            // First message - send new message
+            const sentMessage = await ctx.reply(part.text);
+            updateMessageId = sentMessage.message_id;
         } else {
-            // Message exists, update it
-            try {
-                await ctx.api.editMessageText(chatId, state.messageId, text, { parse_mode: "HTML" });
-                console.log(`Updated message ${state.messageId} for session ${sessionKey}`);
-            } catch (err) {
-                // If edit fails (message might be deleted), send new message
-                console.error(`Failed to edit message ${state.messageId}, creating new one:`, err);
-                try {
-                    const sent = await ctx.api.sendMessage(chatId, text, { parse_mode: "HTML" });
-                    state.messageId = sent.message_id;
-                    console.log(`Created fallback message ${sent.message_id} for session ${sessionKey}`);
-                } catch (sendErr) {
-                    console.error("Failed to send fallback message:", sendErr);
-                    return null;
-                }
-            }
+            // Subsequent updates - edit existing message
+            await ctx.api.editMessageText(
+                ctx.chat!.id,
+                updateMessageId,
+                part.text
+            );
         }
 
-        // Set timer to delete message after 10 seconds of no updates
-        state.deleteTimer = setTimeout(async () => {
-            if (state!.messageId) {
-                try {
-                    await ctx.api.deleteMessage(chatId, state!.messageId);
-                    console.log(`Deleted message ${state!.messageId} after timeout for session ${sessionKey}`);
-                } catch (err) {
-                    console.error("Failed to delete message:", err);
-                }
-                state!.messageId = null;
-            }
-            state!.deleteTimer = null;
-        }, 10000);
+        // Set timeout to delete message after 5 seconds of no updates
+        deleteTimeout = setTimeout(() => {
+            deleteMessage(ctx);
+        }, 5000);
 
-        return null;
+    } catch (error) {
+        console.log("Error in message.part.updated handler:", error);
     }
 
-    console.log("Handled message.part.updated event:", part);
+    return null;
+}
+
+async function deleteMessage(ctx: Context): Promise<void> {
+    try {
+        if (updateMessageId) {
+            await ctx.api.deleteMessage(ctx.chat!.id, updateMessageId);
+            updateMessageId = null;
+        }
+    } catch (error) {
+        console.log("Error deleting message:", error);
+    }
+}
+
+async function handleReasoningPart(ctx: Context): Promise<null> {
+    try {
+        // Clear existing reasoning delete timeout
+        if (reasoningDeleteTimeout) {
+            clearTimeout(reasoningDeleteTimeout);
+            reasoningDeleteTimeout = null;
+        }
+
+        if (!reasoningMessageId) {
+            // Send reasoning message
+            const sentMessage = await ctx.reply("Reasoning");
+            reasoningMessageId = sentMessage.message_id;
+        }
+
+        // Set timeout to delete message after 2.5 seconds (half of 5 seconds)
+        reasoningDeleteTimeout = setTimeout(async () => {
+            try {
+                if (reasoningMessageId) {
+                    await ctx.api.deleteMessage(ctx.chat!.id, reasoningMessageId);
+                    reasoningMessageId = null;
+                }
+            } catch (error) {
+                console.log("Error deleting reasoning message:", error);
+            }
+        }, 2500);
+
+    } catch (error) {
+        console.log("Error in reasoning part handler:", error);
+    }
+
+    return null;
+}
+
+async function handleToolPart(ctx: Context, part: any): Promise<null> {
+    try {
+        // Clear existing tool delete timeout
+        if (toolDeleteTimeout) {
+            clearTimeout(toolDeleteTimeout);
+            toolDeleteTimeout = null;
+        }
+
+        if (!toolMessageId && part.tool) {
+            // Send tool name message
+            const sentMessage = await ctx.reply(`🔧 ${part.tool}`);
+            toolMessageId = sentMessage.message_id;
+        }
+
+        // Set timeout to delete message after 2.5 seconds (half of 5 seconds)
+        toolDeleteTimeout = setTimeout(async () => {
+            try {
+                if (toolMessageId) {
+                    await ctx.api.deleteMessage(ctx.chat!.id, toolMessageId);
+                    toolMessageId = null;
+                }
+            } catch (error) {
+                console.log("Error deleting tool message:", error);
+            }
+        }, 2500);
+
+    } catch (error) {
+        console.log("Error in tool part handler:", error);
+    }
+
     return null;
 }

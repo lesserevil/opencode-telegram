@@ -32,13 +32,17 @@ export class OpenCodeBot {
         bot.command("start", AccessControlMiddleware.requireAccess, this.handleStart.bind(this));
         bot.command("help", AccessControlMiddleware.requireAccess, this.handleStart.bind(this));
         bot.command("opencode", AccessControlMiddleware.requireAccess, this.handleOpenCode.bind(this));
-        bot.command("prompt", AccessControlMiddleware.requireAccess, this.handlePrompt.bind(this));
         bot.command("esc", AccessControlMiddleware.requireAccess, this.handleEsc.bind(this));
         bot.command("endsession", AccessControlMiddleware.requireAccess, this.handleEndSession.bind(this));
+        bot.command("rename", AccessControlMiddleware.requireAccess, this.handleRename.bind(this));
         
         // Handle keyboard button presses
         bot.hears("⏹️ ESC", AccessControlMiddleware.requireAccess, this.handleEsc.bind(this));
         bot.hears("⇥ TAB", AccessControlMiddleware.requireAccess, this.handleTab.bind(this));
+        
+        // Handle inline button callbacks
+        bot.callbackQuery("esc", AccessControlMiddleware.requireAccess, this.handleEscButton.bind(this));
+        bot.callbackQuery("tab", AccessControlMiddleware.requireAccess, this.handleTabButton.bind(this));
         
         // Handle regular messages (non-commands) as prompts
         bot.on("message:text", AccessControlMiddleware.requireAccess, async (ctx, next) => {
@@ -58,27 +62,45 @@ export class OpenCodeBot {
     private async handleStart(ctx: Context): Promise<void> {
         try {
             const helpMessage = [
-                '👋 Welcome to TelegramCoder!',
+                '👋 <b>Welcome to TelegramCoder!</b>',
                 '',
-                'Available commands:',
-                '/esc - Abort the current AI operation (like pressing ESC)',
+                '🎯 <b>Session Commands:</b>',
+                '/opencode [title] - Start a new OpenCode AI session',
+                '   Example: /opencode Fix login bug',
+                '/rename &lt;title&gt; - Rename your current session',
+                '   Example: /rename Updated task name',
+                '/endsession - End and close your current session',
+                '',
+                '⚡️ <b>Control Commands:</b>',
+                '/esc - Abort the current AI operation',
+                '⇥ TAB button - Cycle between agents (build ↔ plan)',
+                '⏹️ ESC button - Same as /esc command',
+                '',
+                '💬 <b>How to Use:</b>',
+                '1. Start: /opencode My Project',
+                '2. Chat: Just send messages directly',
+                '3. Control: Use ESC/TAB buttons on session message',
+                '4. Rename: /rename New Name (anytime)',
+                '5. End: /endsession when done',
+                '',
+                '🤖 <b>Agents Available:</b>',
+                '• <b>build</b> - Implements code and makes changes',
+                '• <b>plan</b> - Plans and analyzes without editing',
+                '',
+                '📋 <b>Help Commands:</b>',
                 '/start - Show this help message',
                 '/help - Show this help message',
-                '/opencode - Start an OpenCode AI session',
-                '/prompt <message> - Send a prompt to OpenCode',
-                '/endsession - End your current OpenCode session',
                 '',
-                '🤖 OpenCode AI:',
-                '• Start a coding session with /opencode',
-                '• Send prompts with /prompt <your message>',
-                '• Get AI-powered coding assistance',
-                '• Receive real-time updates as the AI works',
-                '• Use /esc to abort current operation',
+                '💡 <b>Tips:</b>',
+                '• Session messages auto-delete after 10 seconds',
+                '• Tab between build/plan agents as needed',
+                '• Use descriptive titles for better organization',
+                '• All messages go directly to the AI (no /prompt needed)',
                 '',
-                '🚀 Get started by typing /opencode!'
+                '🚀 <b>Get started:</b> /opencode'
             ].join('\n');
 
-            const sentMessage = await ctx.reply(helpMessage);
+            const sentMessage = await ctx.reply(helpMessage, { parse_mode: "HTML" });
 
             const deleteTimeout = this.configService.getMessageDeleteTimeout();
             if (deleteTimeout > 0 && sentMessage) {
@@ -103,18 +125,38 @@ export class OpenCodeBot {
 
             // Check if user already has an active session
             if (this.opencodeService.hasActiveSession(userId)) {
-                await ctx.reply("ℹ️ You already have an active OpenCode session. Use /prompt to send messages.");
+                const message = await ctx.reply("✅ Session already started", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                { text: "⏹️ ESC", callback_data: "esc" },
+                                { text: "⇥ TAB", callback_data: "tab" }
+                            ]
+                        ]
+                    }
+                });
+                
+                // Schedule auto-deletion
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    message.message_id,
+                    this.configService.getMessageDeleteTimeout()
+                );
                 return;
             }
+
+            // Extract title from command text (everything after /opencode)
+            const text = ctx.message?.text || "";
+            const title = text.replace("/opencode", "").trim() || undefined;
 
             // Create a new session
             const statusMessage = await ctx.reply("🔄 Starting OpenCode session...");
 
             try {
-                // Try to create session
+                // Try to create session with optional title
                 let userSession;
                 try {
-                    userSession = await this.opencodeService.createSession(userId);
+                    userSession = await this.opencodeService.createSession(userId, title);
                 } catch (error) {
                     // Check if it's a connection error
                     if (error instanceof Error && (error.message.includes('Cannot connect to OpenCode server'))) {
@@ -144,8 +186,8 @@ export class OpenCodeBot {
                             "✅ OpenCode server started!\n\n🔄 Creating session..."
                         );
 
-                        // Retry session creation
-                        userSession = await this.opencodeService.createSession(userId);
+                        // Retry session creation with title
+                        userSession = await this.opencodeService.createSession(userId, title);
                     } else {
                         throw error;
                     }
@@ -154,19 +196,28 @@ export class OpenCodeBot {
                 const successMessage = await ctx.api.editMessageText(
                     ctx.chat!.id,
                     statusMessage.message_id,
-                    `✅ Session created!\n\nSession ID: <code>${userSession.sessionId}</code>\n\n` +
-                    `Use /prompt &lt;your message&gt; to send prompts to OpenCode.\n\n` +
-                    `💡 Use the ESC button below to abort operations.`,
-                    { parse_mode: "HTML" }
+                    "✅ Session started",
+                    {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [
+                                    { text: "⏹️ ESC", callback_data: "esc" },
+                                    { text: "⇥ TAB", callback_data: "tab" }
+                                ]
+                            ]
+                        }
+                    }
                 );
 
-                // Send keyboard in a separate message
-                await ctx.reply("🎛️ Control Panel:", {
-                    reply_markup: this.createControlKeyboard()
-                });
+                // Schedule auto-deletion of the session started message
+                const messageId = (typeof successMessage === "object" && successMessage && "message_id" in successMessage) ? (successMessage as any).message_id : statusMessage.message_id;
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    messageId,
+                    this.configService.getMessageDeleteTimeout()
+                );
 
                 // Store chat context and start event streaming
-                const messageId = (typeof successMessage === "object" && successMessage && "message_id" in successMessage) ? (successMessage as any).message_id : statusMessage.message_id;
                 this.opencodeService.updateSessionContext(userId, ctx.chat!.id, messageId);
 
                 // Start event streaming in background
@@ -182,35 +233,6 @@ export class OpenCodeBot {
             }
         } catch (error) {
             await ctx.reply(ErrorUtils.createErrorMessage("start OpenCode session", error));
-        }
-    }
-
-    private async handlePrompt(ctx: Context): Promise<void> {
-        try {
-            const userId = ctx.from?.id;
-            if (!userId) {
-                await ctx.reply("❌ Unable to identify user");
-                return;
-            }
-
-            // Check if user has an active session
-            if (!this.opencodeService.hasActiveSession(userId)) {
-                await ctx.reply("❌ No active OpenCode session. Use /opencode to start a session first.");
-                return;
-            }
-
-            // Get the prompt text (everything after /prompt)
-            const text = ctx.message?.text || "";
-            const promptText = text.replace("/prompt", "").trim();
-
-            if (!promptText) {
-                await ctx.reply("❌ Please provide a prompt. Usage: /prompt <your message>");
-                return;
-            }
-
-            await this.sendPromptToOpenCode(ctx, userId, promptText);
-        } catch (error) {
-            await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
         }
     }
 
@@ -391,7 +413,15 @@ export class OpenCodeBot {
             const success = await this.opencodeService.deleteSession(userId);
 
             if (success) {
-                await ctx.reply("✅ OpenCode session ended successfully.");
+                const sentMessage = await ctx.reply("✅ OpenCode session ended successfully.");
+                const deleteTimeout = this.configService.getMessageDeleteTimeout();
+                if (deleteTimeout > 0 && sentMessage) {
+                    await MessageUtils.scheduleMessageDeletion(
+                        ctx,
+                        sentMessage.message_id,
+                        deleteTimeout
+                    );
+                }
             } else {
                 await ctx.reply("⚠️ Failed to end session. It may have already been closed.");
             }
@@ -438,41 +468,107 @@ export class OpenCodeBot {
                 return;
             }
 
-            // Show temporary status message
-            const statusMessage = await ctx.reply("🔄 Cycling to next agent...");
-
             try {
                 // Cycle to next agent
                 const result = await this.opencodeService.cycleToNextAgent(userId);
 
                 if (result.success && result.currentAgent) {
-                    // Get list of available agents for context
-                    const agents = await this.opencodeService.getAvailableAgents();
-                    const agentList = agents.map(a => `• ${a.name}${a.description ? `: ${a.description}` : ''}`).join('\n');
-
-                    await ctx.api.editMessageText(
-                        ctx.chat!.id,
-                        statusMessage.message_id,
-                        `⇥ Switched to agent: <b>${result.currentAgent}</b>\n\n` +
-                        `Available primary agents:\n${agentList || 'No agents available'}`,
-                        { parse_mode: "HTML" }
+                    // Show simple agent name message
+                    const message = await ctx.reply(`⇥ <b>${result.currentAgent}</b>`, { parse_mode: "HTML" });
+                    
+                    // Schedule auto-deletion
+                    await MessageUtils.scheduleMessageDeletion(
+                        ctx,
+                        message.message_id,
+                        this.configService.getMessageDeleteTimeout()
                     );
                 } else {
-                    await ctx.api.editMessageText(
-                        ctx.chat!.id,
-                        statusMessage.message_id,
-                        "⚠️ Failed to cycle agent. Please try again."
+                    const errorMsg = await ctx.reply("⚠️ Failed to cycle agent. Please try again.");
+                    await MessageUtils.scheduleMessageDeletion(
+                        ctx,
+                        errorMsg.message_id,
+                        this.configService.getMessageDeleteTimeout()
                     );
                 }
             } catch (error) {
-                await ctx.api.editMessageText(
-                    ctx.chat!.id,
-                    statusMessage.message_id,
-                    ErrorUtils.createErrorMessage("cycle agent", error)
+                const errorMsg = await ctx.reply(ErrorUtils.createErrorMessage("cycle agent", error));
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    errorMsg.message_id,
+                    this.configService.getMessageDeleteTimeout()
                 );
             }
         } catch (error) {
             await ctx.reply(ErrorUtils.createErrorMessage("handle TAB", error));
+        }
+    }
+
+    private async handleEscButton(ctx: Context): Promise<void> {
+        try {
+            // Answer the callback query to remove loading state
+            await ctx.answerCallbackQuery();
+            
+            // Call the same handler as the ESC command/keyboard
+            await this.handleEsc(ctx);
+        } catch (error) {
+            await ctx.answerCallbackQuery("Error handling ESC");
+            console.error("Error in handleEscButton:", error);
+        }
+    }
+
+    private async handleTabButton(ctx: Context): Promise<void> {
+        try {
+            // Answer the callback query to remove loading state
+            await ctx.answerCallbackQuery();
+            
+            // Call the same handler as the TAB keyboard
+            await this.handleTab(ctx);
+        } catch (error) {
+            await ctx.answerCallbackQuery("Error handling TAB");
+            console.error("Error in handleTabButton:", error);
+        }
+    }
+
+    private async handleRename(ctx: Context): Promise<void> {
+        try {
+            const userId = ctx.from?.id;
+            if (!userId) {
+                await ctx.reply("❌ Unable to identify user");
+                return;
+            }
+
+            // Check if user has an active session
+            if (!this.opencodeService.hasActiveSession(userId)) {
+                await ctx.reply("❌ No active session. Use /opencode to start one first.");
+                return;
+            }
+
+            // Extract new title from command text
+            const text = ctx.message?.text || "";
+            const newTitle = text.replace("/rename", "").trim();
+
+            if (!newTitle) {
+                await ctx.reply("❌ Please provide a new title.\n\nUsage: /rename <new title>");
+                return;
+            }
+
+            // Update the session title
+            const result = await this.opencodeService.updateSessionTitle(userId, newTitle);
+
+            if (result.success) {
+                const message = await ctx.reply(`✅ Session renamed to: <b>${newTitle}</b>`, { parse_mode: "HTML" });
+                
+                // Schedule auto-deletion
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    message.message_id,
+                    this.configService.getMessageDeleteTimeout()
+                );
+            } else {
+                await ctx.reply(`❌ ${result.message || "Failed to rename session"}`);
+            }
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("rename session", error));
         }
     }
 }

@@ -190,20 +190,43 @@ export class OpenCodeService {
                 return [];
             }
 
-            // Internal agents to filter out
+            // Filter for user-selectable agents:
+            // - mode must be "primary" (not "subagent")
+            // - hidden must NOT be true
+            // - exclude internal utility agents by name as well
             const internalAgents = ['compaction', 'title', 'summary'];
 
-            // Filter for primary agents only, exclude internal agents
-            return result.data
-                .filter((agent: any) => 
-                    (agent.mode === "primary" || agent.mode === "all") &&
-                    !internalAgents.includes(agent.name)
-                )
+            const filtered = result.data
+                .filter((agent: any) => {
+                    // Exclude hidden agents
+                    if (agent.hidden === true) {
+                        console.log(`Filtering out hidden agent: ${agent.name}`);
+                        return false;
+                    }
+                    
+                    // Exclude subagents (only meant to be called by other agents)
+                    if (agent.mode === "subagent") {
+                        console.log(`Filtering out subagent: ${agent.name}`);
+                        return false;
+                    }
+                    
+                    // Exclude internal utility agents by name
+                    if (internalAgents.includes(agent.name)) {
+                        console.log(`Filtering out internal agent: ${agent.name}`);
+                        return false;
+                    }
+                    
+                    // Only include primary agents
+                    return agent.mode === "primary" || agent.mode === "all";
+                })
                 .map((agent: any) => ({
                     name: agent.name || "unknown",
                     mode: agent.mode,
                     description: agent.description
                 }));
+
+            console.log("Filtered agents:", filtered.map((a: any) => a.name));
+            return filtered;
         } catch (error) {
             console.error("Failed to get available agents:", error);
             return [];
@@ -220,43 +243,57 @@ export class OpenCodeService {
         const client = createOpencodeClient({ baseUrl: this.baseUrl });
 
         try {
-            // Send agent.cycle command
-            await client.session.command({
-                path: { id: userSession.sessionId },
-                body: {
-                    command: "agent.cycle",
-                    arguments: ""
-                }
-            });
-
-            // Get config to retrieve active agent name
-            const configResult = await client.config.get();
-
-            // The config contains agent configurations, but we need to determine which is active
-            // Since we don't have a direct "current agent" field, we'll get it from the command response
-            // or the most recent message's agent field
+            // Get available primary agents (not hidden, not subagents)
+            const agents = await this.getAvailableAgents();
             
-            // Try to get the last message to see which agent is being used
-            const messagesResult = await client.session.messages({
-                path: { id: userSession.sessionId }
-            });
-
-            // Get the most recent user message's agent
-            let currentAgent = "unknown";
-            if (messagesResult.data && messagesResult.data.length > 0) {
-                const lastUserMessage = messagesResult.data
-                    .filter((msg: any) => msg.role === "user")
-                    .pop();
-                
-                if (lastUserMessage && lastUserMessage.agent) {
-                    currentAgent = lastUserMessage.agent;
-                }
+            if (agents.length === 0) {
+                console.error("No available agents to cycle through");
+                return { success: false };
             }
 
-            return { success: true, currentAgent };
+            // Get current agent or default to first one
+            const currentAgent = userSession.currentAgent || agents[0].name;
+            
+            // Find current agent index
+            const currentIndex = agents.findIndex(a => a.name === currentAgent);
+            
+            // Cycle to next agent (wrap around to start if at end)
+            const nextIndex = (currentIndex + 1) % agents.length;
+            const nextAgent = agents[nextIndex].name;
+            
+            // Update user session with new agent
+            userSession.currentAgent = nextAgent;
+            
+            console.log(`✓ Cycled agent for user ${userId}: ${currentAgent} → ${nextAgent}`);
+            console.log(`  Available agents: ${agents.map(a => a.name).join(", ")}`);
+            
+            return { success: true, currentAgent: nextAgent };
         } catch (error) {
             console.error(`Failed to cycle agent for user ${userId}:`, error);
             return { success: false };
+        }
+    }
+
+    async updateSessionTitle(userId: number, title: string): Promise<{ success: boolean; message?: string }> {
+        const userSession = this.getUserSession(userId);
+
+        if (!userSession) {
+            return { success: false, message: "No active session found" };
+        }
+
+        const client = createOpencodeClient({ baseUrl: this.baseUrl });
+
+        try {
+            await client.session.update({
+                path: { id: userSession.sessionId },
+                body: { title }
+            });
+
+            console.log(`✓ Updated session title for user ${userId}: "${title}"`);
+            return { success: true };
+        } catch (error) {
+            console.error(`Failed to update session title for user ${userId}:`, error);
+            return { success: false, message: "Failed to update session title" };
         }
     }
 }
