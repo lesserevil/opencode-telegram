@@ -384,7 +384,7 @@ export class OpenCodeBot {
             }
 
             if (!this.opencodeService.hasActiveSession(userId)) {
-                await ctx.reply("ℹ️ You don't have an active OpenCode session.");
+                await ctx.reply("ℹ️ You don't have an active OpenCode session. Use /opencode to start one.");
                 return;
             }
 
@@ -409,7 +409,7 @@ export class OpenCodeBot {
             }
 
             if (!this.opencodeService.hasActiveSession(userId)) {
-                await ctx.reply("ℹ️ You don't have an active OpenCode session.");
+                await ctx.reply("ℹ️ You don't have an active OpenCode session. Use /opencode to start one.");
                 return;
             }
 
@@ -434,7 +434,7 @@ export class OpenCodeBot {
             }
 
             if (!this.opencodeService.hasActiveSession(userId)) {
-                await ctx.reply("ℹ️ You don't have an active OpenCode session.");
+                await ctx.reply("ℹ️ You don't have an active OpenCode session. Use /opencode to start one.");
                 return;
             }
 
