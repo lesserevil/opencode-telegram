@@ -159,4 +159,24 @@ export class OpenCodeService {
     hasActiveSession(userId: number): boolean {
         return this.userSessions.has(userId);
     }
+
+    async abortSession(userId: number): Promise<boolean> {
+        const userSession = this.getUserSession(userId);
+
+        if (!userSession) {
+            return false;
+        }
+
+        const client = createOpencodeClient({ baseUrl: this.baseUrl });
+
+        try {
+            await client.session.abort({
+                path: { id: userSession.sessionId },
+            });
+            return true;
+        } catch (error) {
+            console.error(`Failed to abort session for user ${userId}:`, error);
+            return false;
+        }
+    }
 }

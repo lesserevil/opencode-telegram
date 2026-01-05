@@ -1,4 +1,4 @@
-import { Bot, Context } from "grammy";
+import { Bot, Context, InputFile, Keyboard } from "grammy";
 import { OpenCodeService } from "./opencode.service.js";
 import { ConfigService } from "../../services/config.service.js";
 import { OpenCodeServerService } from "../../services/opencode-server.service.js";
@@ -20,12 +20,39 @@ export class OpenCodeBot {
         this.serverService = new OpenCodeServerService();
     }
 
+    private createControlKeyboard(): Keyboard {
+        return new Keyboard()
+            .text("⏹️ ESC")
+            .text("⇥ TAB")
+            .resized()
+            .persistent();
+    }
+
     registerHandlers(bot: Bot): void {
         bot.command("start", AccessControlMiddleware.requireAccess, this.handleStart.bind(this));
         bot.command("help", AccessControlMiddleware.requireAccess, this.handleStart.bind(this));
         bot.command("opencode", AccessControlMiddleware.requireAccess, this.handleOpenCode.bind(this));
         bot.command("prompt", AccessControlMiddleware.requireAccess, this.handlePrompt.bind(this));
+        bot.command("esc", AccessControlMiddleware.requireAccess, this.handleEsc.bind(this));
         bot.command("endsession", AccessControlMiddleware.requireAccess, this.handleEndSession.bind(this));
+        
+        // Handle keyboard button presses
+        bot.hears("⏹️ ESC", AccessControlMiddleware.requireAccess, this.handleEsc.bind(this));
+        bot.hears("⇥ TAB", AccessControlMiddleware.requireAccess, this.handleTab.bind(this));
+        
+        // Handle regular messages (non-commands) as prompts
+        bot.on("message:text", AccessControlMiddleware.requireAccess, async (ctx, next) => {
+            // Skip if it's a command
+            if (ctx.message?.text?.startsWith("/")) {
+                return next();
+            }
+            // Skip if it's a keyboard button
+            if (ctx.message?.text === "⏹️ ESC" || ctx.message?.text === "⇥ TAB") {
+                return next();
+            }
+            // Treat as prompt
+            await this.handleMessageAsPrompt(ctx);
+        });
     }
 
     private async handleStart(ctx: Context): Promise<void> {
@@ -34,6 +61,7 @@ export class OpenCodeBot {
                 '👋 Welcome to TelegramCoder!',
                 '',
                 'Available commands:',
+                '/esc - Abort the current AI operation (like pressing ESC)',
                 '/start - Show this help message',
                 '/help - Show this help message',
                 '/opencode - Start an OpenCode AI session',
@@ -45,6 +73,7 @@ export class OpenCodeBot {
                 '• Send prompts with /prompt <your message>',
                 '• Get AI-powered coding assistance',
                 '• Receive real-time updates as the AI works',
+                '• Use /esc to abort current operation',
                 '',
                 '🚀 Get started by typing /opencode!'
             ].join('\n');
@@ -125,10 +154,16 @@ export class OpenCodeBot {
                 const successMessage = await ctx.api.editMessageText(
                     ctx.chat!.id,
                     statusMessage.message_id,
-                    `Session ID: <code>${userSession.sessionId}</code>\n\n` +
-                    `Use /prompt &lt;your message&gt; to send prompts to OpenCode.`,
+                    `✅ Session created!\n\nSession ID: <code>${userSession.sessionId}</code>\n\n` +
+                    `Use /prompt &lt;your message&gt; to send prompts to OpenCode.\n\n` +
+                    `💡 Use the ESC button below to abort operations.`,
                     { parse_mode: "HTML" }
                 );
+
+                // Send keyboard in a separate message
+                await ctx.reply("🎛️ Control Panel:", {
+                    reply_markup: this.createControlKeyboard()
+                });
 
                 // Store chat context and start event streaming
                 const messageId = (typeof successMessage === "object" && successMessage && "message_id" in successMessage) ? (successMessage as any).message_id : statusMessage.message_id;
@@ -173,55 +208,136 @@ export class OpenCodeBot {
                 return;
             }
 
-            // Send a status message
-            const statusMessage = await ctx.reply("🔄 Sending prompt to OpenCode...");
+            await this.sendPromptToOpenCode(ctx, userId, promptText);
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
+        }
+    }
 
-            try {
-                const response = await this.opencodeService.sendPrompt(userId, promptText);
+    private async handleMessageAsPrompt(ctx: Context): Promise<void> {
+        try {
+            const userId = ctx.from?.id;
+            if (!userId) {
+                await ctx.reply("❌ Unable to identify user");
+                return;
+            }
 
-                // Split response if it's too long (Telegram has a 4096 character limit)
-                const maxLength = 4000;
-                if (response.length <= maxLength) {
+            // Check if user has an active session
+            if (!this.opencodeService.hasActiveSession(userId)) {
+                await ctx.reply("❌ No active OpenCode session. Use /opencode to start a session first.");
+                return;
+            }
+
+            const promptText = ctx.message?.text?.trim() || "";
+
+            if (!promptText) {
+                return;
+            }
+
+            await this.sendPromptToOpenCode(ctx, userId, promptText);
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
+        }
+    }
+
+    private async sendPromptToOpenCode(ctx: Context, userId: number, promptText: string): Promise<void> {
+        // Send a status message
+        const statusMessage = await ctx.reply("🔄 Sending prompt to OpenCode...");
+        let messageDeleted = false;
+        
+        // Schedule deletion of status message
+        const deleteTimeout = this.configService.getMessageDeleteTimeout();
+        if (deleteTimeout > 0) {
+            await MessageUtils.scheduleMessageDeletion(
+                ctx,
+                statusMessage.message_id,
+                deleteTimeout
+            );
+        }
+
+        try {
+            const response = await this.opencodeService.sendPrompt(userId, promptText);
+
+            // Check if response is markdown (contains markdown formatting)
+            const isMarkdown = this.isMarkdownContent(response);
+            
+            if (isMarkdown) {
+                // Delete status message
+                try {
+                    await ctx.api.deleteMessage(ctx.chat!.id, statusMessage.message_id);
+                    messageDeleted = true;
+                } catch (e) {
+                    // Message might already be deleted
+                }
+                
+                // Send as markdown file
+                const buffer = Buffer.from(response, 'utf-8');
+                await ctx.replyWithDocument(new InputFile(buffer, "response.md"));
+                return;
+            }
+
+            // Split response if it's too long (Telegram has a 4096 character limit)
+            const maxLength = 4000;
+            if (response.length <= maxLength) {
+                try {
                     await ctx.api.editMessageText(
                         ctx.chat!.id,
                         statusMessage.message_id,
                         this.escapeHtml(response),
                         { parse_mode: "HTML" }
                     );
+                } catch (e) {
+                    // Message might have been deleted, send as new message
+                    await ctx.reply(this.escapeHtml(response), { parse_mode: "HTML" });
+                    messageDeleted = true;
+                }
 
-                    // Schedule deletion after showing the response
-                    const deleteTimeout = this.configService.getMessageDeleteTimeout();
-                    if (deleteTimeout > 0) {
-                        await MessageUtils.scheduleMessageDeletion(
-                            ctx,
-                            statusMessage.message_id,
-                            deleteTimeout
-                        );
-                    }
-                } else {
-                    // Schedule deletion of status message after a short interval
+                // Schedule deletion after showing the response
+                if (deleteTimeout > 0 && !messageDeleted) {
                     await MessageUtils.scheduleMessageDeletion(
                         ctx,
                         statusMessage.message_id,
-                        2000  // Delete status message after 2 seconds
+                        deleteTimeout
                     );
-
-                    const chunks = this.splitIntoChunks(response, maxLength);
-                    for (const chunk of chunks) {
-                        await ctx.reply(this.escapeHtml(chunk), { parse_mode: "HTML" });
-                    }
+                }
+            } else {
+                // Delete status message immediately and send response in chunks
+                try {
+                    await ctx.api.deleteMessage(ctx.chat!.id, statusMessage.message_id);
+                    messageDeleted = true;
+                } catch (e) {
+                    // Message might already be deleted
                 }
 
-            } catch (error) {
-                await ctx.api.editMessageText(
-                    ctx.chat!.id,
-                    statusMessage.message_id,
-                    ErrorUtils.createErrorMessage("send prompt to OpenCode", error)
-                );
+                const chunks = this.splitIntoChunks(response, maxLength);
+                for (const chunk of chunks) {
+                    await ctx.reply(this.escapeHtml(chunk), { parse_mode: "HTML" });
+                }
             }
+
         } catch (error) {
-            await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
+            // Try to edit the status message with the error, but only if it wasn't deleted
+            if (!messageDeleted) {
+                try {
+                    await ctx.api.editMessageText(
+                        ctx.chat!.id,
+                        statusMessage.message_id,
+                        ErrorUtils.createErrorMessage("send prompt to OpenCode", error)
+                    );
+                } catch (e) {
+                    // Message was deleted, send error as new message
+                    await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
+                }
+            } else {
+                // Message already deleted, send error as new message
+                await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
+            }
         }
+    }
+
+    private isMarkdownContent(text: string): boolean {
+        // If first character is a hash, it's markdown
+        return text.trimStart().startsWith('#');
     }
 
     private escapeHtml(text: string): string {
@@ -281,6 +397,51 @@ export class OpenCodeBot {
             }
         } catch (error) {
             await ctx.reply(ErrorUtils.createErrorMessage("end OpenCode session", error));
+        }
+    }
+
+    private async handleEsc(ctx: Context): Promise<void> {
+        try {
+            const userId = ctx.from?.id;
+            if (!userId) {
+                await ctx.reply("❌ Unable to identify user");
+                return;
+            }
+
+            if (!this.opencodeService.hasActiveSession(userId)) {
+                await ctx.reply("ℹ️ You don't have an active OpenCode session.");
+                return;
+            }
+
+            const success = await this.opencodeService.abortSession(userId);
+
+            if (success) {
+                await ctx.reply("⏹️ Current operation aborted successfully.");
+            } else {
+                await ctx.reply("⚠️ Failed to abort operation. Please try again.");
+            }
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("abort OpenCode operation", error));
+        }
+    }
+
+    private async handleTab(ctx: Context): Promise<void> {
+        try {
+            const userId = ctx.from?.id;
+            if (!userId) {
+                await ctx.reply("❌ Unable to identify user");
+                return;
+            }
+
+            if (!this.opencodeService.hasActiveSession(userId)) {
+                await ctx.reply("ℹ️ You don't have an active OpenCode session.");
+                return;
+            }
+
+            // TAB sends a tab character to the current prompt for autocomplete
+            await ctx.reply("⇥ TAB pressed - Feature for autocomplete/completion (not yet fully implemented in OpenCode API)");
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("handle TAB", error));
         }
     }
 }
