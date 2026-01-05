@@ -438,8 +438,39 @@ export class OpenCodeBot {
                 return;
             }
 
-            // TAB sends a tab character to the current prompt for autocomplete
-            await ctx.reply("⇥ TAB pressed - Feature for autocomplete/completion (not yet fully implemented in OpenCode API)");
+            // Show temporary status message
+            const statusMessage = await ctx.reply("🔄 Cycling to next agent...");
+
+            try {
+                // Cycle to next agent
+                const result = await this.opencodeService.cycleToNextAgent(userId);
+
+                if (result.success && result.currentAgent) {
+                    // Get list of available agents for context
+                    const agents = await this.opencodeService.getAvailableAgents();
+                    const agentList = agents.map(a => `• ${a.name}${a.description ? `: ${a.description}` : ''}`).join('\n');
+
+                    await ctx.api.editMessageText(
+                        ctx.chat!.id,
+                        statusMessage.message_id,
+                        `⇥ Switched to agent: <b>${result.currentAgent}</b>\n\n` +
+                        `Available primary agents:\n${agentList || 'No agents available'}`,
+                        { parse_mode: "HTML" }
+                    );
+                } else {
+                    await ctx.api.editMessageText(
+                        ctx.chat!.id,
+                        statusMessage.message_id,
+                        "⚠️ Failed to cycle agent. Please try again."
+                    );
+                }
+            } catch (error) {
+                await ctx.api.editMessageText(
+                    ctx.chat!.id,
+                    statusMessage.message_id,
+                    ErrorUtils.createErrorMessage("cycle agent", error)
+                );
+            }
         } catch (error) {
             await ctx.reply(ErrorUtils.createErrorMessage("handle TAB", error));
         }

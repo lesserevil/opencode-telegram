@@ -179,4 +179,61 @@ export class OpenCodeService {
             return false;
         }
     }
+
+    async getAvailableAgents(): Promise<Array<{ name: string; mode?: string; description?: string }>> {
+        const client = createOpencodeClient({ baseUrl: this.baseUrl });
+
+        try {
+            const result = await client.app.agents();
+            
+            if (!result.data) {
+                return [];
+            }
+
+            // Filter for primary agents only and extract relevant info
+            return result.data
+                .filter((agent: any) => agent.mode === "primary" || agent.mode === "all")
+                .map((agent: any) => ({
+                    name: agent.name || "unknown",
+                    mode: agent.mode,
+                    description: agent.description
+                }));
+        } catch (error) {
+            console.error("Failed to get available agents:", error);
+            return [];
+        }
+    }
+
+    async cycleToNextAgent(userId: number): Promise<{ success: boolean; currentAgent?: string }> {
+        const userSession = this.getUserSession(userId);
+
+        if (!userSession) {
+            return { success: false };
+        }
+
+        const client = createOpencodeClient({ baseUrl: this.baseUrl });
+
+        try {
+            // Send agent.cycle command
+            await client.session.command({
+                path: { id: userSession.sessionId },
+                body: {
+                    command: "agent.cycle",
+                    arguments: ""
+                }
+            });
+
+            // Get current session to retrieve active agent
+            const sessionResult = await client.session.get({
+                path: { id: userSession.sessionId }
+            });
+
+            const currentAgent = sessionResult.data?.agent || "unknown";
+
+            return { success: true, currentAgent };
+        } catch (error) {
+            console.error(`Failed to cycle agent for user ${userId}:`, error);
+            return { success: false };
+        }
+    }
 }
