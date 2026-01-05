@@ -269,7 +269,10 @@ export class OpenCodeBot {
             // Check if response is markdown (contains markdown formatting)
             const isMarkdown = this.isMarkdownContent(response);
             
-            if (isMarkdown) {
+            // Check if response has more than 20 lines
+            const hasManyLines = response.split('\n').length > 20;
+            
+            if (isMarkdown || hasManyLines) {
                 // Send as markdown file
                 const buffer = Buffer.from(response, 'utf-8');
                 await ctx.replyWithDocument(new InputFile(buffer, "response.md"));
