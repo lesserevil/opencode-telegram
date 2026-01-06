@@ -30,6 +30,7 @@ export class OpenCodeService {
                 sessionId: result.data.id,
                 session: result.data,
                 createdAt: new Date(),
+                currentAgent: "build",
             };
 
             this.userSessions.set(userId, userSession);
@@ -109,6 +110,7 @@ export class OpenCodeService {
                 path: { id: userSession.sessionId },
                 body: {
                     parts: [{ type: "text", text }],
+                    agent: userSession.currentAgent,
                 },
             });
 

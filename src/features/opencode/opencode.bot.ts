@@ -5,6 +5,7 @@ import { OpenCodeServerService } from "../../services/opencode-server.service.js
 import { AccessControlMiddleware } from "../../middleware/access-control.middleware.js";
 import { MessageUtils } from "../../utils/message.utils.js";
 import { ErrorUtils } from "../../utils/error.utils.js";
+import { escapeMarkdownV2 } from "./event-handlers/utils.js";
 
 export class OpenCodeBot {
     private opencodeService: OpenCodeService;
@@ -282,11 +283,11 @@ export class OpenCodeBot {
             // Split response if it's too long (Telegram has a 4096 character limit)
             const maxLength = 4000;
             if (response.length <= maxLength) {
-                await ctx.reply(this.escapeHtml(response), { parse_mode: "HTML" });
+                await ctx.reply(escapeMarkdownV2(response), { parse_mode: "MarkdownV2" });
             } else {
                 const chunks = this.splitIntoChunks(response, maxLength);
                 for (const chunk of chunks) {
-                    await ctx.reply(this.escapeHtml(chunk), { parse_mode: "HTML" });
+                    await ctx.reply(escapeMarkdownV2(chunk), { parse_mode: "MarkdownV2" });
                 }
             }
 

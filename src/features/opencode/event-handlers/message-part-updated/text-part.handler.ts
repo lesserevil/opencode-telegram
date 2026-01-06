@@ -1,8 +1,10 @@
 import type { Context } from "grammy";
+import { escapeMarkdownV2 } from "../utils.js";
 
 let updateMessageId: number | null = null;
 let lastUpdateTime = 0;
 let deleteTimeout: NodeJS.Timeout | null = null;
+let latestText = "";
 
 export async function handleTextPart(ctx: Context, text: string): Promise<void> {
     try {
@@ -14,30 +16,34 @@ export async function handleTextPart(ctx: Context, text: string): Promise<void> 
             deleteTimeout = null;
         }
 
-        // Throttle: Check if 1 second has passed since last update
-        const timeSinceLastUpdate = now - lastUpdateTime;
-        if (updateMessageId && timeSinceLastUpdate < 1000) {
-            // Skip this update, but still set the delete timeout
-            deleteTimeout = setTimeout(() => {
-                deleteTextMessage(ctx);
-            }, 5000);
-            return;
-        }
-
-        // Update the last update time
-        lastUpdateTime = now;
+        // Store the latest text (escaped for MarkdownV2)
+        latestText = escapeMarkdownV2(text);
 
         if (!updateMessageId) {
             // First message - send new message
-            const sentMessage = await ctx.reply(text);
+            const sentMessage = await ctx.reply(latestText, { parse_mode: "MarkdownV2" });
             updateMessageId = sentMessage.message_id;
+            lastUpdateTime = now; // Set time AFTER sending
         } else {
-            // Subsequent updates - edit existing message
+            // Throttle: Check if 2 seconds have passed since last update
+            const timeSinceLastUpdate = now - lastUpdateTime;
+            if (timeSinceLastUpdate < 2000) {
+                // Skip this update (text is stored in latestText for later)
+                // Set timeout to delete after 5 seconds of no new updates
+                deleteTimeout = setTimeout(() => {
+                    deleteTextMessage(ctx);
+                }, 5000);
+                return;
+            }
+            
+            // Update immediately if enough time has passed
             await ctx.api.editMessageText(
                 ctx.chat!.id,
                 updateMessageId,
-                text
+                latestText,
+                { parse_mode: "MarkdownV2" }
             );
+            lastUpdateTime = now; // Update time AFTER sending
         }
 
         // Set timeout to delete message after 5 seconds of no updates
