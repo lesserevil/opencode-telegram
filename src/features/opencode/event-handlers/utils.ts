@@ -6,64 +6,27 @@ export function escapeHtml(text: string): string {
         .replace(/"/g, "&quot;");
 }
 
-export function escapeMarkdownV2(text: string): string {
-    // Escape special characters for Telegram's MarkdownV2
-    // BUT preserve common markdown formatting patterns
-    
-    // First, protect markdown patterns by temporarily replacing them
-    const protectedPatterns: Array<[RegExp, string, string]> = [
-        [/```[\s\S]*?```/g, '___CODE_BLOCK___', ''], // Code blocks
-        [/`[^`]+`/g, '___INLINE_CODE___', ''], // Inline code
-        [/\*\*[^*]+\*\*/g, '___BOLD___', ''], // Bold
-        [/\*[^*]+\*/g, '___ITALIC___', ''], // Italic
-        [/\[[^\]]+\]\([^)]+\)/g, '___LINK___', ''], // Links
-    ];
-    
-    const protectedTexts: string[] = [];
-    let protectedText = text;
-    
-    // Extract and protect markdown patterns
-    protectedPatterns.forEach(([pattern, placeholder]) => {
-        const matches = protectedText.match(pattern) || [];
-        matches.forEach((match) => {
-            protectedTexts.push(match);
-            protectedText = protectedText.replace(match, `${placeholder}${protectedTexts.length - 1}___`);
-        });
-    });
-    
-    // Now escape special characters in the remaining text
-    protectedText = protectedText
-        .replace(/\\/g, '\\\\')  // Backslash must be escaped first
-        .replace(/_/g, '\\_')
-        .replace(/\*/g, '\\*')
-        .replace(/\[/g, '\\[')
-        .replace(/\]/g, '\\]')
-        .replace(/\(/g, '\\(')
-        .replace(/\)/g, '\\)')
-        .replace(/~/g, '\\~')
-        .replace(/`/g, '\\`')
-        .replace(/>/g, '\\>')
-        .replace(/#/g, '\\#')
-        .replace(/\+/g, '\\+')
-        .replace(/-/g, '\\-')
-        .replace(/=/g, '\\=')
-        .replace(/\|/g, '\\|')
-        .replace(/\{/g, '\\{')
-        .replace(/\}/g, '\\}')
-        .replace(/\./g, '\\.')
-        .replace(/!/g, '\\!');
-    
-    // Restore protected markdown patterns
-    protectedPatterns.forEach(([, placeholder]) => {
-        for (let i = protectedTexts.length - 1; i >= 0; i--) {
-            const placeholderWithIndex = `${placeholder}${i}___`;
-            if (protectedText.includes(placeholderWithIndex)) {
-                protectedText = protectedText.replace(placeholderWithIndex, protectedTexts[i]);
-            }
-        }
-    });
-    
-    return protectedText;
+export function formatAsHtml(text: string): string {
+    // Convert markdown-style formatting to HTML
+    // Note: Telegram HTML doesn't support <br> tags well, so we keep newlines
+    return escapeHtml(text)
+        // Convert code blocks ``` to <pre><code>
+        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+        // Convert inline code ` to <code>
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // Convert **bold** to <b>
+        .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+        // Convert *italic* to <i>
+        .replace(/\*([^*]+)\*/g, '<i>$1</i>')
+        // Convert __underline__ to <u>
+        .replace(/__([^_]+)__/g, '<u>$1</u>')
+        // Convert ~~strikethrough~~ to <s>
+        .replace(/~~([^~]+)~~/g, '<s>$1</s>')
+        // Convert headers # ## ### to <b> (simple approach)
+        .replace(/^###\s+(.*)$/gm, '<b>$1</b>')
+        .replace(/^##\s+(.*)$/gm, '<b>$1</b>')
+        .replace(/^#\s+(.*)$/gm, '<b>$1</b>');
+    // Keep newlines as-is - Telegram HTML supports them natively
 }
 
 export async function sendAndAutoDelete(

@@ -96,7 +96,7 @@ export class OpenCodeService {
         }
     }
 
-    async sendPrompt(userId: number, text: string): Promise<string> {
+    async sendPrompt(userId: number, text: string, fileContext?: string): Promise<string> {
         const userSession = this.getUserSession(userId);
 
         if (!userSession) {
@@ -106,10 +106,13 @@ export class OpenCodeService {
         const client = createOpencodeClient({ baseUrl: this.baseUrl });
 
         try {
+            // Prepend file context if provided
+            const fullPrompt = fileContext ? `${fileContext}\n\n${text}` : text;
+            
             const result = await client.session.prompt({
                 path: { id: userSession.sessionId },
                 body: {
-                    parts: [{ type: "text", text }],
+                    parts: [{ type: "text", text: fullPrompt }],
                     agent: userSession.currentAgent,
                 },
             });
@@ -296,6 +299,106 @@ export class OpenCodeService {
         } catch (error) {
             console.error(`Failed to update session title for user ${userId}:`, error);
             return { success: false, message: "Failed to update session title" };
+        }
+    }
+
+    async getProjects(): Promise<Array<{ id: string; worktree: string }>> {
+        const client = createOpencodeClient({ baseUrl: this.baseUrl });
+
+        try {
+            const result = await client.project.list();
+            
+            if (!result.data) {
+                return [];
+            }
+
+            return result.data.map((project: any) => ({
+                id: project.id,
+                worktree: project.worktree
+            }));
+        } catch (error) {
+            console.error("Failed to get projects:", error);
+            return [];
+        }
+    }
+
+    async getSessions(limit: number = 5): Promise<Array<{ id: string; title: string; created: number; updated: number }>> {
+        const client = createOpencodeClient({ baseUrl: this.baseUrl });
+
+        try {
+            const result = await client.session.list();
+            
+            if (!result.data) {
+                return [];
+            }
+
+            // Sort by updated time (most recent first) and limit to specified number
+            return result.data
+                .sort((a: any, b: any) => b.time.updated - a.time.updated)
+                .slice(0, limit)
+                .map((session: any) => ({
+                    id: session.id,
+                    title: session.title,
+                    created: session.time.created,
+                    updated: session.time.updated
+                }));
+        } catch (error) {
+            console.error("Failed to get sessions:", error);
+            return [];
+        }
+    }
+
+    async undoLastMessage(userId: number): Promise<{ success: boolean; message?: string }> {
+        const userSession = this.getUserSession(userId);
+
+        if (!userSession) {
+            return { success: false, message: "No active session found" };
+        }
+
+        const client = createOpencodeClient({ baseUrl: this.baseUrl });
+
+        try {
+            // Check if revert method exists on the client
+            if (typeof client.session.revert !== 'function') {
+                return { success: false, message: "Undo is not available in this SDK version" };
+            }
+
+            await client.session.revert({
+                path: { id: userSession.sessionId }
+            });
+
+            console.log(`✓ Undid last message for user ${userId}`);
+            return { success: true };
+        } catch (error) {
+            console.error(`Failed to undo message for user ${userId}:`, error);
+            return { success: false, message: "Failed to undo last message" };
+        }
+    }
+
+    async redoLastMessage(userId: number): Promise<{ success: boolean; message?: string }> {
+        const userSession = this.getUserSession(userId);
+
+        if (!userSession) {
+            return { success: false, message: "No active session found" };
+        }
+
+        const client = createOpencodeClient({ baseUrl: this.baseUrl });
+
+        try {
+            // Check if unrevert method exists on the client
+            if (typeof client.session.unrevert !== 'function') {
+                return { success: false, message: "Redo is not available in this SDK version" };
+            }
+
+            await client.session.unrevert({
+                path: { id: userSession.sessionId }
+            });
+
+            console.log(`✓ Redid last message for user ${userId}`);
+            return { success: true };
+        } catch (error) {
+            console.error(`Failed to redo message for user ${userId}:`, error);
+            return { success: false, message: "Failed to redo last message" };
         }
     }
 }

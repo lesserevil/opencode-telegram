@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import { escapeMarkdownV2 } from "../utils.js";
+import { formatAsHtml } from "../utils.js";
 
 let updateMessageId: number | null = null;
 let lastUpdateTime = 0;
@@ -16,12 +16,18 @@ export async function handleTextPart(ctx: Context, text: string): Promise<void> 
             deleteTimeout = null;
         }
 
-        // Store the latest text (escaped for MarkdownV2)
-        latestText = escapeMarkdownV2(text);
+        // Limit to last 50 lines to prevent Telegram message size issues
+        const lines = text.split('\n');
+        const limitedText = lines.length > 50 
+            ? lines.slice(-50).join('\n')
+            : text;
+
+        // Store the latest text (formatted as HTML)
+        latestText = formatAsHtml(limitedText);
 
         if (!updateMessageId) {
             // First message - send new message
-            const sentMessage = await ctx.reply(latestText, { parse_mode: "MarkdownV2" });
+            const sentMessage = await ctx.reply(latestText, { parse_mode: "HTML" });
             updateMessageId = sentMessage.message_id;
             lastUpdateTime = now; // Set time AFTER sending
         } else {
@@ -41,7 +47,7 @@ export async function handleTextPart(ctx: Context, text: string): Promise<void> 
                 ctx.chat!.id,
                 updateMessageId,
                 latestText,
-                { parse_mode: "MarkdownV2" }
+                { parse_mode: "HTML" }
             );
             lastUpdateTime = now; // Update time AFTER sending
         }

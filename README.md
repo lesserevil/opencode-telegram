@@ -39,16 +39,20 @@ The bot includes built-in integration with OpenCode AI for intelligent coding as
 - Then use `/opencode` - the bot handles the rest!
 
 **Commands:**
-- `/esc` - Abort the current AI operation (like pressing ESC key)
 - `/start` or `/help` - Show help message with available commands
-- `/opencode` - Start a new OpenCode AI session (auto-starts server if needed)
-- `/prompt <message>` - Send a prompt to your active OpenCode session
+- `/opencode [title]` - Start a new OpenCode AI session (auto-starts server if needed)
+- `/rename <title>` - Rename your current session
 - `/endsession` - End your current OpenCode session
+- `/esc` - Abort the current AI operation (like pressing ESC key)
+- `/undo` - Revert the last message/change in the session
+- `/redo` - Restore a previously undone change
+- `/projects` - List available projects
+- `/sessions` - Show recent sessions
 
 **Control Keyboard:**
 When you start a session with `/opencode`, a control keyboard appears below the chat input with quick-access buttons:
 - **⏹️ ESC** - Instantly abort the current AI operation
-- **⇥ TAB** - Send TAB for autocomplete (feature in development)
+- **⇥ TAB** - Cycle between agents (build ↔ plan)
 
 **Example Usage:**
 ```

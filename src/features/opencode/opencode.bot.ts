@@ -5,12 +5,15 @@ import { OpenCodeServerService } from "../../services/opencode-server.service.js
 import { AccessControlMiddleware } from "../../middleware/access-control.middleware.js";
 import { MessageUtils } from "../../utils/message.utils.js";
 import { ErrorUtils } from "../../utils/error.utils.js";
-import { escapeMarkdownV2 } from "./event-handlers/utils.js";
+import { formatAsHtml, escapeHtml } from "./event-handlers/utils.js";
+import { FileMentionService, FileMentionUI } from "../file-mentions/index.js";
 
 export class OpenCodeBot {
     private opencodeService: OpenCodeService;
     private configService: ConfigService;
     private serverService: OpenCodeServerService;
+    private fileMentionService: FileMentionService;
+    private fileMentionUI: FileMentionUI;
 
     constructor(
         opencodeService: OpenCodeService,
@@ -19,6 +22,8 @@ export class OpenCodeBot {
         this.opencodeService = opencodeService;
         this.configService = configService;
         this.serverService = new OpenCodeServerService();
+        this.fileMentionService = new FileMentionService();
+        this.fileMentionUI = new FileMentionUI();
     }
 
     private createControlKeyboard(): Keyboard {
@@ -36,6 +41,10 @@ export class OpenCodeBot {
         bot.command("esc", AccessControlMiddleware.requireAccess, this.handleEsc.bind(this));
         bot.command("endsession", AccessControlMiddleware.requireAccess, this.handleEndSession.bind(this));
         bot.command("rename", AccessControlMiddleware.requireAccess, this.handleRename.bind(this));
+        bot.command("projects", AccessControlMiddleware.requireAccess, this.handleProjects.bind(this));
+        bot.command("sessions", AccessControlMiddleware.requireAccess, this.handleSessions.bind(this));
+        bot.command("undo", AccessControlMiddleware.requireAccess, this.handleUndo.bind(this));
+        bot.command("redo", AccessControlMiddleware.requireAccess, this.handleRedo.bind(this));
         
         // Handle keyboard button presses
         bot.hears("⏹️ ESC", AccessControlMiddleware.requireAccess, this.handleEsc.bind(this));
@@ -71,46 +80,50 @@ export class OpenCodeBot {
                 '/rename &lt;title&gt; - Rename your current session',
                 '   Example: /rename Updated task name',
                 '/endsession - End and close your current session',
+                '/sessions - View your recent sessions (last 5)',
+                '/projects - List available projects',
                 '',
                 '⚡️ <b>Control Commands:</b>',
                 '/esc - Abort the current AI operation',
+                '/undo - Revert the last message/change',
+                '/redo - Restore a previously undone change',
                 '⇥ TAB button - Cycle between agents (build ↔ plan)',
                 '⏹️ ESC button - Same as /esc command',
                 '',
+                '📋 <b>Information Commands:</b>',
+                '/start - Show this help message',
+                '/help - Show this help message',
+                '/sessions - View recent sessions with IDs',
+                '/projects - List available projects',
+                '',
                 '💬 <b>How to Use:</b>',
                 '1. Start: /opencode My Project',
-                '2. Chat: Just send messages directly',
+                '2. Chat: Just send messages directly (no /prompt needed)',
                 '3. Control: Use ESC/TAB buttons on session message',
-                '4. Rename: /rename New Name (anytime)',
-                '5. End: /endsession when done',
+                '4. Rename: /rename New Name (anytime during session)',
+                '5. Undo/Redo: /undo or /redo to manage changes',
+                '6. End: /endsession when done',
                 '',
                 '🤖 <b>Agents Available:</b>',
                 '• <b>build</b> - Implements code and makes changes',
                 '• <b>plan</b> - Plans and analyzes without editing',
-                '',
-                '📋 <b>Help Commands:</b>',
-                '/start - Show this help message',
-                '/help - Show this help message',
+                '• Use TAB button to switch between agents',
                 '',
                 '💡 <b>Tips:</b>',
+                '• This help message stays - reference it anytime!',
                 '• Session messages auto-delete after 10 seconds',
                 '• Tab between build/plan agents as needed',
                 '• Use descriptive titles for better organization',
-                '• All messages go directly to the AI (no /prompt needed)',
+                '• All messages go directly to the AI',
+                '• Use /undo if AI makes unwanted changes',
+                '• Streaming responses limited to last 50 lines',
                 '',
                 '🚀 <b>Get started:</b> /opencode'
             ].join('\n');
 
-            const sentMessage = await ctx.reply(helpMessage, { parse_mode: "HTML" });
-
-            const deleteTimeout = this.configService.getMessageDeleteTimeout();
-            if (deleteTimeout > 0 && sentMessage) {
-                await MessageUtils.scheduleMessageDeletion(
-                    ctx,
-                    sentMessage.message_id,
-                    deleteTimeout
-                );
-            }
+            await ctx.reply(helpMessage, { parse_mode: "HTML" });
+            
+            // Help message should not auto-delete - users may want to reference it
         } catch (error) {
             await ctx.reply(ErrorUtils.createErrorMessage('show help message', error));
         }
@@ -257,15 +270,64 @@ export class OpenCodeBot {
                 return;
             }
 
-            await this.sendPromptToOpenCode(ctx, userId, promptText);
+            // Check for file mentions
+            const mentions = this.fileMentionService.parseMentions(promptText);
+            
+            if (mentions.length > 0 && this.fileMentionService.isEnabled()) {
+                await this.handlePromptWithMentions(ctx, userId, promptText, mentions);
+            } else {
+                await this.sendPromptToOpenCode(ctx, userId, promptText);
+            }
         } catch (error) {
             await ctx.reply(ErrorUtils.createErrorMessage("send prompt to OpenCode", error));
         }
     }
 
-    private async sendPromptToOpenCode(ctx: Context, userId: number, promptText: string): Promise<void> {
+    private async handlePromptWithMentions(
+        ctx: Context,
+        userId: number,
+        promptText: string,
+        mentions: any[]
+    ): Promise<void> {
         try {
-            const response = await this.opencodeService.sendPrompt(userId, promptText);
+            // Show searching indicator
+            const searchMessage = await this.fileMentionUI.showSearching(ctx, mentions.length);
+            
+            // Search for files
+            const matches = await this.fileMentionService.searchMentions(mentions);
+            
+            // Delete searching message
+            await ctx.api.deleteMessage(searchMessage.chat.id, searchMessage.message_id).catch(() => {});
+            
+            // Get user confirmation for file selections
+            const selectedFiles = await this.fileMentionUI.confirmAllMatches(ctx, matches);
+            
+            if (!selectedFiles) {
+                await ctx.reply("❌ File selection cancelled");
+                return;
+            }
+            
+            // Resolve files and get content
+            const resolved = await this.fileMentionService.resolveMentions(
+                mentions,
+                selectedFiles,
+                true
+            );
+            
+            // Format file context
+            const fileContext = this.fileMentionService.formatForPrompt(resolved);
+            
+            // Send prompt with file context
+            await this.sendPromptToOpenCode(ctx, userId, promptText, fileContext);
+            
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("process file mentions", error));
+        }
+    }
+
+    private async sendPromptToOpenCode(ctx: Context, userId: number, promptText: string, fileContext?: string): Promise<void> {
+        try {
+            const response = await this.opencodeService.sendPrompt(userId, promptText, fileContext);
 
             // Check if response is markdown (contains markdown formatting)
             const isMarkdown = this.isMarkdownContent(response);
@@ -283,11 +345,11 @@ export class OpenCodeBot {
             // Split response if it's too long (Telegram has a 4096 character limit)
             const maxLength = 4000;
             if (response.length <= maxLength) {
-                await ctx.reply(escapeMarkdownV2(response), { parse_mode: "MarkdownV2" });
+                await ctx.reply(formatAsHtml(response), { parse_mode: "HTML" });
             } else {
                 const chunks = this.splitIntoChunks(response, maxLength);
                 for (const chunk of chunks) {
-                    await ctx.reply(escapeMarkdownV2(chunk), { parse_mode: "MarkdownV2" });
+                    await ctx.reply(formatAsHtml(chunk), { parse_mode: "HTML" });
                 }
             }
 
@@ -301,13 +363,7 @@ export class OpenCodeBot {
         return text.trimStart().startsWith('#');
     }
 
-    private escapeHtml(text: string): string {
-        return text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;");
-    }
+
 
     private splitIntoChunks(text: string, maxLength: number): string[] {
         const chunks: string[] = [];
@@ -508,6 +564,135 @@ export class OpenCodeBot {
             }
         } catch (error) {
             await ctx.reply(ErrorUtils.createErrorMessage("rename session", error));
+        }
+    }
+
+    private async handleProjects(ctx: Context): Promise<void> {
+        try {
+            const projects = await this.opencodeService.getProjects();
+
+            if (projects.length === 0) {
+                const message = await ctx.reply("📂 No projects found");
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    message.message_id,
+                    this.configService.getMessageDeleteTimeout()
+                );
+                return;
+            }
+
+            // Format as numbered list
+            const projectList = projects
+                .map((project, index) => `${index + 1}. ${project.worktree}`)
+                .join("\n");
+
+            const message = await ctx.reply(`📂 <b>Available Projects:</b>\n\n${projectList}`, {
+                parse_mode: "HTML"
+            });
+
+            // Schedule auto-deletion
+            await MessageUtils.scheduleMessageDeletion(
+                ctx,
+                message.message_id,
+                this.configService.getMessageDeleteTimeout()
+            );
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("list projects", error));
+        }
+    }
+
+    private async handleSessions(ctx: Context): Promise<void> {
+        try {
+            const sessions = await this.opencodeService.getSessions(5);
+
+            if (sessions.length === 0) {
+                const message = await ctx.reply("💬 No sessions found");
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    message.message_id,
+                    this.configService.getMessageDeleteTimeout()
+                );
+                return;
+            }
+
+            // Format sessions with title and short ID
+            const sessionList = sessions
+                .map((session, index) => {
+                    const shortId = session.id.substring(0, 8);
+                    const title = session.title || "Untitled";
+                    const date = new Date(session.updated * 1000).toLocaleString();
+                    return `${index + 1}. <b>${title}</b>\n   ID: <code>${shortId}</code>\n   Updated: ${date}`;
+                })
+                .join("\n\n");
+
+            const message = await ctx.reply(`💬 <b>Recent Sessions (Last 5):</b>\n\n${sessionList}`, {
+                parse_mode: "HTML"
+            });
+
+            // Schedule auto-deletion
+            await MessageUtils.scheduleMessageDeletion(
+                ctx,
+                message.message_id,
+                this.configService.getMessageDeleteTimeout()
+            );
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("list sessions", error));
+        }
+    }
+
+    private async handleUndo(ctx: Context): Promise<void> {
+        const userId = ctx.from?.id;
+        if (!userId) return;
+
+        try {
+            const result = await this.opencodeService.undoLastMessage(userId);
+
+            if (result.success) {
+                const message = await ctx.reply("↩️ <b>Undone</b> - Last message reverted", { parse_mode: "HTML" });
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    message.message_id,
+                    this.configService.getMessageDeleteTimeout()
+                );
+            } else {
+                const errorMsg = result.message || "Failed to undo last message";
+                const message = await ctx.reply(`❌ ${errorMsg}`);
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    message.message_id,
+                    this.configService.getMessageDeleteTimeout()
+                );
+            }
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("undo", error));
+        }
+    }
+
+    private async handleRedo(ctx: Context): Promise<void> {
+        const userId = ctx.from?.id;
+        if (!userId) return;
+
+        try {
+            const result = await this.opencodeService.redoLastMessage(userId);
+
+            if (result.success) {
+                const message = await ctx.reply("↪️ <b>Redone</b> - Change restored", { parse_mode: "HTML" });
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    message.message_id,
+                    this.configService.getMessageDeleteTimeout()
+                );
+            } else {
+                const errorMsg = result.message || "Failed to redo last message";
+                const message = await ctx.reply(`❌ ${errorMsg}`);
+                await MessageUtils.scheduleMessageDeletion(
+                    ctx,
+                    message.message_id,
+                    this.configService.getMessageDeleteTimeout()
+                );
+            }
+        } catch (error) {
+            await ctx.reply(ErrorUtils.createErrorMessage("redo", error));
         }
     }
 }
