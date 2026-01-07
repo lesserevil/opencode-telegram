@@ -49,6 +49,12 @@ The bot includes built-in integration with OpenCode AI for intelligent coding as
 - `/projects` - List available projects
 - `/sessions` - Show recent sessions
 
+**File Uploads:**
+Send any file to the bot and it will:
+- Save to `/tmp/telegramCoder/` automatically
+- Reply with the full path in tappable format
+- Support all file types (documents, photos, videos, audio, etc.)
+
 **Control Keyboard:**
 When you start a session with `/opencode`, a control keyboard appears below the chat input with quick-access buttons:
 - **⏹️ ESC** - Instantly abort the current AI operation

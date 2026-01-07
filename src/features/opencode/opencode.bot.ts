@@ -7,6 +7,8 @@ import { MessageUtils } from "../../utils/message.utils.js";
 import { ErrorUtils } from "../../utils/error.utils.js";
 import { formatAsHtml, escapeHtml } from "./event-handlers/utils.js";
 import { FileMentionService, FileMentionUI } from "../file-mentions/index.js";
+import * as fs from "fs";
+import * as path from "path";
 
 export class OpenCodeBot {
     private opencodeService: OpenCodeService;
@@ -54,6 +56,14 @@ export class OpenCodeBot {
         bot.callbackQuery("esc", AccessControlMiddleware.requireAccess, this.handleEscButton.bind(this));
         bot.callbackQuery("tab", AccessControlMiddleware.requireAccess, this.handleTabButton.bind(this));
         
+        // Handle file uploads (documents, photos, videos, audio, etc.)
+        bot.on("message:document", AccessControlMiddleware.requireAccess, this.handleFileUpload.bind(this));
+        bot.on("message:photo", AccessControlMiddleware.requireAccess, this.handleFileUpload.bind(this));
+        bot.on("message:video", AccessControlMiddleware.requireAccess, this.handleFileUpload.bind(this));
+        bot.on("message:audio", AccessControlMiddleware.requireAccess, this.handleFileUpload.bind(this));
+        bot.on("message:voice", AccessControlMiddleware.requireAccess, this.handleFileUpload.bind(this));
+        bot.on("message:video_note", AccessControlMiddleware.requireAccess, this.handleFileUpload.bind(this));
+        
         // Handle regular messages (non-commands) as prompts
         bot.on("message:text", AccessControlMiddleware.requireAccess, async (ctx, next) => {
             // Skip if it's a command
@@ -99,10 +109,11 @@ export class OpenCodeBot {
                 '💬 <b>How to Use:</b>',
                 '1. Start: /opencode My Project',
                 '2. Chat: Just send messages directly (no /prompt needed)',
-                '3. Control: Use ESC/TAB buttons on session message',
-                '4. Rename: /rename New Name (anytime during session)',
-                '5. Undo/Redo: /undo or /redo to manage changes',
-                '6. End: /endsession when done',
+                '3. Upload: Send any file - it saves to /tmp/telegramCoder',
+                '4. Control: Use ESC/TAB buttons on session message',
+                '5. Rename: /rename New Name (anytime during session)',
+                '6. Undo/Redo: /undo or /redo to manage changes',
+                '7. End: /endsession when done',
                 '',
                 '🤖 <b>Agents Available:</b>',
                 '• <b>build</b> - Implements code and makes changes',
@@ -111,6 +122,8 @@ export class OpenCodeBot {
                 '',
                 '💡 <b>Tips:</b>',
                 '• This help message stays - reference it anytime!',
+                '• Send files - they\'re saved to /tmp/telegramCoder',
+                '• Tap the file path to copy it to clipboard',
                 '• Session messages auto-delete after 10 seconds',
                 '• Tab between build/plan agents as needed',
                 '• Use descriptive titles for better organization',
@@ -693,6 +706,99 @@ export class OpenCodeBot {
             }
         } catch (error) {
             await ctx.reply(ErrorUtils.createErrorMessage("redo", error));
+        }
+    }
+
+    private async handleFileUpload(ctx: Context): Promise<void> {
+        try {
+            const message = ctx.message;
+            if (!message) return;
+
+            let fileId: string | undefined;
+            let fileName: string | undefined;
+            let fileType: string = "file";
+
+            // Extract file info based on message type
+            if (message.document) {
+                fileId = message.document.file_id;
+                fileName = message.document.file_name || `document_${Date.now()}`;
+                fileType = "document";
+            } else if (message.photo && message.photo.length > 0) {
+                // Get the largest photo
+                const photo = message.photo[message.photo.length - 1];
+                fileId = photo.file_id;
+                fileName = `photo_${Date.now()}.jpg`;
+                fileType = "photo";
+            } else if (message.video) {
+                fileId = message.video.file_id;
+                fileName = message.video.file_name || `video_${Date.now()}.mp4`;
+                fileType = "video";
+            } else if (message.audio) {
+                fileId = message.audio.file_id;
+                fileName = message.audio.file_name || `audio_${Date.now()}.mp3`;
+                fileType = "audio";
+            } else if (message.voice) {
+                fileId = message.voice.file_id;
+                fileName = `voice_${Date.now()}.ogg`;
+                fileType = "voice";
+            } else if (message.video_note) {
+                fileId = message.video_note.file_id;
+                fileName = `video_note_${Date.now()}.mp4`;
+                fileType = "video_note";
+            }
+
+            if (!fileId || !fileName) {
+                await ctx.reply("❌ Unable to process this file type");
+                return;
+            }
+
+            // Get file from Telegram
+            const file = await ctx.api.getFile(fileId);
+            if (!file.file_path) {
+                await ctx.reply("❌ Unable to get file path from Telegram");
+                return;
+            }
+
+            // Download file
+            const fileUrl = `https://api.telegram.org/file/bot${ctx.api.token}/${file.file_path}`;
+            const response = await fetch(fileUrl);
+            
+            if (!response.ok) {
+                await ctx.reply("❌ Failed to download file from Telegram");
+                return;
+            }
+
+            // Ensure directory exists (create if needed)
+            const saveDir = "/tmp/telegramCoder";
+            if (!fs.existsSync(saveDir)) {
+                console.log(`Creating directory: ${saveDir}`);
+                fs.mkdirSync(saveDir, { recursive: true });
+                console.log(`✓ Directory created: ${saveDir}`);
+            }
+
+            // Save file
+            const savePath = path.join(saveDir, fileName);
+            const buffer = Buffer.from(await response.arrayBuffer());
+            fs.writeFileSync(savePath, buffer);
+
+            // Send confirmation with clickable filename
+            const confirmMessage = await ctx.reply(
+                `✅ <b>File saved!</b>\n\nPath: <code>${savePath}</code>\n\nTap the path to copy it.`,
+                { parse_mode: "HTML" }
+            );
+
+            // Auto-delete after configured timeout
+            await MessageUtils.scheduleMessageDeletion(
+                ctx,
+                confirmMessage.message_id,
+                this.configService.getMessageDeleteTimeout()
+            );
+
+            console.log(`✓ File saved: ${savePath} (${fileType}, ${buffer.length} bytes)`);
+
+        } catch (error) {
+            console.error("Error handling file upload:", error);
+            await ctx.reply(ErrorUtils.createErrorMessage("save file", error));
         }
     }
 }
