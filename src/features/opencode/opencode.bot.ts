@@ -9,6 +9,7 @@ import { formatAsHtml, escapeHtml } from "./event-handlers/utils.js";
 import { FileMentionService, FileMentionUI } from "../file-mentions/index.js";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 
 export class OpenCodeBot {
     private opencodeService: OpenCodeService;
@@ -172,9 +173,23 @@ export class OpenCodeBot {
                 return;
             }
 
-            // Extract title from command text (everything after /opencode)
             const text = ctx.message?.text || "";
-            const title = text.replace("/opencode", "").trim() || undefined;
+            const args = text.replace("/opencode", "").trim();
+            let directory: string | undefined;
+            let title: string | undefined;
+
+            if (args.startsWith("/") || args.startsWith("~")) {
+                const spaceIndex = args.indexOf(" ");
+                const rawPath = spaceIndex === -1 ? args : args.slice(0, spaceIndex);
+                directory = rawPath.startsWith("~")
+                    ? path.join(os.homedir(), rawPath.slice(1))
+                    : rawPath;
+                if (spaceIndex !== -1) {
+                    title = args.slice(spaceIndex + 1).trim() || undefined;
+                }
+            } else {
+                title = args || undefined;
+            }
 
             // Create a new session
             const statusMessage = await ctx.reply("🔄 Starting OpenCode session...");
@@ -183,7 +198,7 @@ export class OpenCodeBot {
                 // Try to create session with optional title
                 let userSession;
                 try {
-                    userSession = await this.opencodeService.createSession(userId, title);
+                    userSession = await this.opencodeService.createSession(userId, title, directory);
                 } catch (error) {
                     // Check if it's a connection error
                     if (error instanceof Error && (error.message.includes('Cannot connect to OpenCode server'))) {

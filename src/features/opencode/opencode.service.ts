@@ -13,12 +13,13 @@ export class OpenCodeService {
         this.baseUrl = baseUrl || process.env.OPENCODE_SERVER_URL || "http://localhost:4096";
     }
 
-    async createSession(userId: number, title?: string): Promise<UserSession> {
+    async createSession(userId: number, title?: string, directory?: string): Promise<UserSession> {
         const client = createOpencodeClient({ baseUrl: this.baseUrl });
 
         try {
             const result = await client.session.create({
-                body: { title: title || `Telegram Session ${new Date().toISOString()}` },
+                body: { title: title || (directory ? `${directory} ${new Date().toISOString()}` : `Telegram Session ${new Date().toISOString()}`) },
+                query: directory ? { directory } : undefined,
             });
 
             if (!result.data) {
